@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from "react"
 import { Plus, Settings, FolderGit2, BotMessageSquare, UserCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"

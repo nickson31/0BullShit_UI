@@ -1,3 +1,5 @@
+'use client'
+
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { type Employee } from '@/types/supabase'
 import { employeeService } from '@/services/employees'

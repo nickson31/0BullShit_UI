@@ -1,3 +1,5 @@
+'use client'
+
 import { useApp } from '@/contexts/AppContext'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
