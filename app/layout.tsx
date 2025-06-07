@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ProjectSelectorSidebar } from "@/components/project-selector-sidebar"
-import { NavigationSidebar } from "@/components/navigation-sidebar"
-import { UserNav } from "@/components/user-nav"
+import ProjectSelectorSidebar from "@/components/project-selector-sidebar"
+import NavigationSidebar from "@/components/navigation-sidebar"
+import UserNav from "@/components/user-nav"
 import { AppProvider } from '@/contexts/AppContext'
 import "./globals.css"
 

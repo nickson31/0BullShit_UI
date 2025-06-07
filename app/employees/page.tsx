@@ -1,5 +1,7 @@
-import { EmployeeList } from '@/components/employees/EmployeeList'
-import { EmployeeDetail } from '@/components/employees/EmployeeDetail'
+'use client'
+
+import EmployeeList from '@/components/employees/EmployeeList'
+import EmployeeDetail from '@/components/employees/EmployeeDetail'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/contexts/AppContext'
 

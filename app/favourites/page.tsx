@@ -1,4 +1,6 @@
-import { InvestorCard } from "@/components/investor-card"
+'use client'
+
+import InvestorCard from "@/components/investor-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function FavouritesPage() {
@@ -14,20 +16,25 @@ export default function FavouritesPage() {
         
         <TabsContent value="investors" className="mt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Example cards - will be populated from backend */}
             <InvestorCard
+              id="1"
+              projectId="p1"
               name="Ana Soler"
               company="Climate Seed"
               location="Madrid"
-              focus="retail-energy"
-              isFavorite={true}
+              investingStage="Series A"
+              categories={["retail-energy"]}
+              score="85"
             />
             <InvestorCard
+              id="2"
+              projectId="p1"
               name="Jordi Ferré"
               company="GreenSprout Angels"
               location="Barcelona"
-              focus="ex-CEO retail"
-              isFavorite={true}
+              investingStage="Seed"
+              categories={["ex-CEO retail"]}
+              score="92"
             />
           </div>
         </TabsContent>
