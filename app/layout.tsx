@@ -1,15 +1,17 @@
-import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { ProjectSelectorSidebar } from "@/components/project-selector-sidebar"
+import { NavigationSidebar } from "@/components/navigation-sidebar"
+import { UserNav } from "@/components/user-nav"
+import { AppProvider } from '@/contexts/AppContext'
+import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "0BullShit - AI Co-Pilot",
-  description: "Your startup investment co-pilot.",
-    generator: 'v0.dev'
+  title: "0BullShit - AI Investor Matching Platform",
+  description: "Find and connect with the right investors for your startup",
 }
 
 export default function RootLayout({
@@ -19,9 +21,25 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-slate-50`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          {children}
+      <body className={inter.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AppProvider>
+            <div className="flex h-screen">
+              <ProjectSelectorSidebar />
+              <NavigationSidebar />
+              <main className="flex-1 overflow-hidden">
+                <div className="flex justify-end p-4">
+                  <UserNav />
+                </div>
+                {children}
+              </main>
+            </div>
+          </AppProvider>
         </ThemeProvider>
       </body>
     </html>
