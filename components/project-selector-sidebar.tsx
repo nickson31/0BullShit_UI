@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react"
-import { Plus, Settings, FolderGit2, BotMessageSquare, UserCircle } from "lucide-react"
+import { Plus, Settings, FolderGit2, MessageSquare, UserCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils"
 
 const projects = [
   { id: "p1", name: "HeartIO", icon: <FolderGit2 className="h-5 w-5 text-slate-700" /> },
-  { id: "p2", name: "Soleolico", icon: <BotMessageSquare className="h-5 w-5 text-slate-700" /> },
+  { id: "p2", name: "Soleolico", icon: <MessageSquare className="h-5 w-5 text-slate-700" /> },
   { id: "p3", name: "Project Gamma", icon: <UserCircle className="h-5 w-5 text-slate-700" /> },
 ]
 
-export function ProjectSelectorSidebar() {
+export default function ProjectSelectorSidebar() {
   const [isExpanded, setIsExpanded] = useState(false)
 
   return (

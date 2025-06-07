@@ -51,7 +51,7 @@ const routes = [
   }
 ]
 
-export function NavigationSidebar() {
+export default function NavigationSidebar() {
   const pathname = usePathname()
 
   return (

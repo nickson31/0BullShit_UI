@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Slider } from '@/components/ui/slider'
 import { motion } from 'framer-motion'
 
-export function EmployeeDetail() {
+export default function EmployeeDetail() {
   const { selectedEmployee, updateEmployeeScore } = useApp()
 
   if (!selectedEmployee) {

@@ -1,85 +1,152 @@
 "use client"
 
 import { useState } from "react"
-import { Heart, X, Info, MapPin, LinkIcon, Mail, Phone, Linkedin, Star, Building2, Target } from "lucide-react"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { type Investor } from "@/types"
+import { ThumbsUp, ThumbsDown, MoreHorizontal } from "lucide-react"
+import { motion } from "framer-motion"
+import { api } from "@/services/api"
+import { useToast } from "@/components/ui/use-toast"
 
-interface InvestorCardProps extends Investor {
-  onFavoriteToggle?: () => void;
+interface InvestorCardProps {
+  id: string;
+  projectId: string;
+  name: string;
+  company: string;
+  location: string;
+  investingStage: string;
+  categories: string[];
+  email?: string;
+  phone?: string;
+  linkedin?: string;
+  website?: string;
+  score?: string;
+  onStatusChange?: () => void;
 }
 
-export function InvestorCard({
+export default function InvestorCard({
+  id,
+  projectId,
   name,
   company,
   location,
-  focus,
-  isFavorite,
-  onFavoriteToggle,
+  investingStage,
+  categories,
+  email,
+  phone,
+  linkedin,
+  website,
+  score,
+  onStatusChange
 }: InvestorCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isDismissed, setIsDismissed] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
 
-  const handleLike = () => {
-    setIsLiked(!isLiked)
-    setIsDismissed(false) // Cannot be liked and dismissed
-    if (onFavoriteToggle) onFavoriteToggle()
+  const handleAction = async (sentiment: "like" | "dislike") => {
+    if (isLoading) return
+    setIsLoading(true)
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/sentiment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entity_id: id,
+          sentiment
+        })
+      })
+
+      if (!response.ok) throw new Error()
+
+      setIsLiked(sentiment === "like")
+      setIsDismissed(sentiment === "dislike")
+      
+      if (onStatusChange) {
+        onStatusChange()
+      }
+
+      toast({
+        title: sentiment === "like" ? "Investor saved" : "Investor dismissed",
+        description: sentiment === "like" 
+          ? "The investor has been added to your saved list"
+          : "The investor has been marked as not interested",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update investor status. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
-
-  const handleDismiss = () => {
-    setIsDismissed(!isDismissed)
-    setIsLiked(false) // Cannot be dismissed and liked
-    if (onFavoriteToggle) onFavoriteToggle()
-  }
-
-  const handleMoreInfo = () => {
-    console.log("More info for:", name)
-  }
-
-  const parseStringOrArray = (value: string[] | string | undefined): string[] => {
-    if (!value) return []
-    if (Array.isArray(value)) return value
-    return value
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s)
-  }
-
-  const investingStages = parseStringOrArray(focus)
-  const investmentCategories = parseStringOrArray(focus)
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between space-y-0">
-        <CardTitle className="text-xl font-bold">{name}</CardTitle>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleLike}
-          className={isFavorite ? "text-yellow-500" : "text-gray-400"}
-        >
-          <Star className="h-5 w-5" />
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex items-center text-sm text-muted-foreground">
-            <Building2 className="mr-2 h-4 w-4" />
-            {company}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+    >
+      <Card className={`
+        ${isLiked ? "border-green-500" : ""} 
+        ${isDismissed ? "border-red-500" : ""}
+      `}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="flex flex-col">
+            <h3 className="font-semibold">{name}</h3>
+            <p className="text-sm text-muted-foreground">{company}</p>
           </div>
-          <div className="flex items-center text-sm text-muted-foreground">
-            <MapPin className="mr-2 h-4 w-4" />
-            {location}
+          {score && (
+            <Badge variant="secondary" className="ml-2">
+              {score}% Match
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{location}</Badge>
+              <Badge variant="outline">{investingStage}</Badge>
+              {categories.map((category, i) => (
+                <Badge key={i} variant="outline">
+                  {category}
+                </Badge>
+              ))}
+            </div>
+            
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-x-2">
+                <Button
+                  size="sm"
+                  variant={isLiked ? "default" : "outline"}
+                  onClick={() => handleAction("like")}
+                  disabled={isLoading || isDismissed}
+                >
+                  <ThumbsUp className="h-4 w-4 mr-1" />
+                  Like
+                </Button>
+                <Button
+                  size="sm"
+                  variant={isDismissed ? "destructive" : "outline"}
+                  onClick={() => handleAction("dislike")}
+                  disabled={isLoading || isLiked}
+                >
+                  <ThumbsDown className="h-4 w-4 mr-1" />
+                  Pass
+                </Button>
+              </div>
+              
+              <Button size="sm" variant="ghost">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center text-sm text-muted-foreground">
-            <Target className="mr-2 h-4 w-4" />
-            {focus}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </motion.div>
   )
 }

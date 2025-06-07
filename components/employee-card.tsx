@@ -7,7 +7,7 @@ interface EmployeeCardProps extends Employee {
   onFavoriteToggle?: () => void;
 }
 
-export function EmployeeCard({
+export default function EmployeeCard({
   name,
   position,
   company,

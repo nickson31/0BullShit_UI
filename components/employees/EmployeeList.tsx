@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
 
-export function EmployeeList() {
+export default function EmployeeList() {
   const { employees, loading, error, selectEmployee } = useApp()
 
   if (loading) {

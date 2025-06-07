@@ -1,10 +1,9 @@
 export interface Investor {
-  id: string | number;
   name: string;
   company: string;
   location: string;
-  focus: string;
-  isFavorite: boolean;
+  focus: string | string[];
+  isFavorite?: boolean;
 }
 
 export interface Employee {

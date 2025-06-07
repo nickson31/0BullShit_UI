@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 
-export function UserNav() {
+export default function UserNav() {
   return (
     <div className="flex items-center gap-4">
       <Badge variant="outline" className="font-semibold">
