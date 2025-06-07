@@ -29,14 +29,16 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AppProvider>
-            <div className="flex h-screen">
+            <div className="flex h-screen bg-background">
               <ProjectSelectorSidebar />
               <NavigationSidebar />
-              <main className="flex-1 overflow-hidden">
-                <div className="flex justify-end p-4">
+              <main className="flex-1 flex flex-col overflow-hidden">
+                <header className="flex items-center justify-end p-4 h-16 border-b">
                   <UserNav />
+                </header>
+                <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                  {children}
                 </div>
-                {children}
               </main>
             </div>
           </AppProvider>
