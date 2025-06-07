@@ -44,4 +44,4 @@ export interface CronJob {
   database: string;
   username: string;
   active: boolean;
-} 
+}

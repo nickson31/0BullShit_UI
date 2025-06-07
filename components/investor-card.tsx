@@ -10,19 +10,19 @@ import { api } from "@/services/api"
 import { useToast } from "@/components/ui/use-toast"
 
 interface InvestorCardProps {
-  id: string;
-  projectId: string;
-  name: string;
-  company: string;
-  location: string;
-  investingStage: string;
-  categories: string[];
-  email?: string;
-  phone?: string;
-  linkedin?: string;
-  website?: string;
-  score?: string;
-  onStatusChange?: () => void;
+  id: string
+  projectId: string
+  name: string
+  company: string
+  location: string
+  investingStage: string | string[]
+  categories: string[]
+  email?: string
+  phone?: string
+  linkedin?: string
+  website?: string
+  score?: string
+  onStatusChange?: () => void
 }
 
 export default function InvestorCard({
@@ -38,7 +38,7 @@ export default function InvestorCard({
   linkedin,
   website,
   score,
-  onStatusChange
+  onStatusChange,
 }: InvestorCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isDismissed, setIsDismissed] = useState(false)
@@ -50,35 +50,37 @@ export default function InvestorCard({
     setIsLoading(true)
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/sentiment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entity_id: id,
-          sentiment
-        })
-      })
+      // const response = await fetch(`/api/projects/${projectId}/sentiment`, {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({
+      //     entity_id: id,
+      //     sentiment
+      //   })
+      // })
 
-      if (!response.ok) throw new Error()
+      // if (!response.ok) throw new Error()
+      await api.updateInvestorSentiment(projectId, id, sentiment) // Replaced fetch with api call
 
       setIsLiked(sentiment === "like")
       setIsDismissed(sentiment === "dislike")
-      
+
       if (onStatusChange) {
         onStatusChange()
       }
 
       toast({
         title: sentiment === "like" ? "Investor saved" : "Investor dismissed",
-        description: sentiment === "like" 
-          ? "The investor has been added to your saved list"
-          : "The investor has been marked as not interested",
+        description:
+          sentiment === "like"
+            ? "The investor has been added to your saved list"
+            : "The investor has been marked as not interested",
       })
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to update investor status. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -86,15 +88,13 @@ export default function InvestorCard({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-    >
-      <Card className={`
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+      <Card
+        className={`
         ${isLiked ? "border-green-500" : ""} 
         ${isDismissed ? "border-red-500" : ""}
-      `}>
+      `}
+      >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div className="flex flex-col">
             <h3 className="font-semibold">{name}</h3>
@@ -110,14 +110,22 @@ export default function InvestorCard({
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{location}</Badge>
-              <Badge variant="outline">{investingStage}</Badge>
+              {typeof investingStage === "string" ? (
+                <Badge variant="outline">{investingStage}</Badge>
+              ) : (
+                investingStage.map((stage, i) => (
+                  <Badge key={i} variant="outline">
+                    {stage}
+                  </Badge>
+                ))
+              )}
               {categories.map((category, i) => (
                 <Badge key={i} variant="outline">
                   {category}
                 </Badge>
               ))}
             </div>
-            
+
             <div className="flex items-center justify-between mt-4">
               <div className="space-x-2">
                 <Button
@@ -139,7 +147,7 @@ export default function InvestorCard({
                   Pass
                 </Button>
               </div>
-              
+
               <Button size="sm" variant="ghost">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>

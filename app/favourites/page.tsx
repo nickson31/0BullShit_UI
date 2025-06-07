@@ -47,4 +47,4 @@ export default function FavouritesPage() {
       </Tabs>
     </div>
   )
-} 
+}

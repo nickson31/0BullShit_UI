@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import InvestorCard from "@/components/investor-card"
 import { Input } from "@/components/ui/input"
@@ -10,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast"
 
 interface PageProps {
   params: {
-    projectId: string;
+    projectId: string
   }
 }
 
@@ -29,7 +31,7 @@ export default function InvestorsPage({ params }: PageProps) {
       toast({
         title: "Error",
         description: "Failed to load investors. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -53,10 +55,10 @@ export default function InvestorsPage({ params }: PageProps) {
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input 
+              <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search investors..." 
+                placeholder="Search investors..."
                 className="pl-10 w-[300px]"
                 disabled={isLoading}
               />
@@ -87,9 +89,10 @@ export default function InvestorsPage({ params }: PageProps) {
               company={investor.Company_Name}
               location={investor.Company_Location}
               investingStage={investor.Investing_Stage}
-              categories={Array.isArray(investor.Investment_Categories) 
-                ? investor.Investment_Categories 
-                : investor.Investment_Categories?.split(",").map((c: string) => c.trim()) || []
+              categories={
+                Array.isArray(investor.Investment_Categories)
+                  ? investor.Investment_Categories
+                  : investor.Investment_Categories?.split(",").map((c: string) => c.trim()) || []
               }
               email={investor.Company_Email}
               phone={investor.Company_Phone}
@@ -103,4 +106,4 @@ export default function InvestorsPage({ params }: PageProps) {
       )}
     </div>
   )
-} 
+}
