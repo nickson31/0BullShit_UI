@@ -22,6 +22,7 @@ interface InvestorCardProps {
   linkedin?: string
   website?: string
   score?: string
+  showActions?: boolean
   onStatusChange?: () => void
 }
 
@@ -38,6 +39,7 @@ export default function InvestorCard({
   linkedin,
   website,
   score,
+  showActions = true,
   onStatusChange,
 }: InvestorCardProps) {
   const [isLiked, setIsLiked] = useState(false)
@@ -126,32 +128,34 @@ export default function InvestorCard({
               ))}
             </div>
 
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-x-2">
-                <Button
-                  size="sm"
-                  variant={isLiked ? "default" : "outline"}
-                  onClick={() => handleAction("like")}
-                  disabled={isLoading || isDismissed}
-                >
-                  <ThumbsUp className="h-4 w-4 mr-1" />
-                  Like
-                </Button>
-                <Button
-                  size="sm"
-                  variant={isDismissed ? "destructive" : "outline"}
-                  onClick={() => handleAction("dislike")}
-                  disabled={isLoading || isLiked}
-                >
-                  <ThumbsDown className="h-4 w-4 mr-1" />
-                  Pass
+            {showActions && (
+              <div className="flex items-center justify-between mt-4">
+                <div className="space-x-2">
+                  <Button
+                    size="sm"
+                    variant={isLiked ? "default" : "outline"}
+                    onClick={() => handleAction("like")}
+                    disabled={isLoading || isDismissed}
+                  >
+                    <ThumbsUp className="h-4 w-4 mr-1" />
+                    Like
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={isDismissed ? "destructive" : "outline"}
+                    onClick={() => handleAction("dislike")}
+                    disabled={isLoading || isLiked}
+                  >
+                    <ThumbsDown className="h-4 w-4 mr-1" />
+                    Pass
+                  </Button>
+                </div>
+
+                <Button size="sm" variant="ghost">
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </div>
-
-              <Button size="sm" variant="ghost">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>

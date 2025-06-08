@@ -73,11 +73,7 @@ const bottomRoutes = [
   },
 ]
 
-const recentChats = [
-  { id: "1", name: "Pitch Deck Analysis" },
-  { id: "2", name: "Investor Questions Prep" },
-  { id: "3", name: "Market Research Summary" },
-]
+const recentChats: Array<{ id: string; name: string }> = []
 
 export default function NavigationSidebar() {
   const pathname = usePathname()
@@ -108,9 +104,6 @@ export default function NavigationSidebar() {
             {isCollapsed ? <Menu className="h-5 w-5" /> : <ChevronsLeft className="h-5 w-5" />}
           </Button>
         </div>
-        {!isCollapsed && (
-          <p className="text-xs text-slate-500 dark:text-slate-400 px-4 pt-1 pb-2">2.5 Flash (preview)</p>
-        )}
 
         <div className="p-2 mt-2">
           <Button
@@ -137,6 +130,9 @@ export default function NavigationSidebar() {
             </h3>
           )}
           <nav className="space-y-1">
+            {recentChats.length === 0 && !isCollapsed && (
+              <p className="px-2 py-1 text-xs text-slate-500 dark:text-slate-400">No recent chats.</p>
+            )}
             {recentChats.map((chat) => (
               <Tooltip key={chat.id}>
                 <TooltipTrigger asChild>

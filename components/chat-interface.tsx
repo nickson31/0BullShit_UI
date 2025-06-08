@@ -2,13 +2,13 @@
 
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
-import { SendHorizontal, Sparkles, BrainCircuit, ImagePlus, Mic } from "lucide-react"
+import { SendHorizontal, Sparkles, Plus, Mic } from "lucide-react" // Removed BrainCircuit from here
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-import InvestorResultsTable from "@/components/investor-results-table" // New component
+import InvestorResultsTable from "@/components/investor-results-table"
 import GrowthUpsellCard from "@/components/growth-upsell-card"
 import OutreachUpsellCard from "@/components/outreach-upsell-card"
 import { useToast } from "@/components/ui/use-toast"
@@ -16,12 +16,10 @@ import { api, type ChatResponseType } from "@/services/api"
 
 interface Message {
   id: string
-  text?: string | React.ReactNode // Can be simple text or complex ReactNode
+  text?: string | React.ReactNode
   sender: "user" | "bot"
   timestamp: Date
-  // component?: "InvestorCard" | "GrowthUpsellCard" | "OutreachUpsellCard" | "InvestorResultsTable"; // Deprecating in favor of direct rendering
-  // componentProps?: any;
-  rawApiResponse?: ChatResponseType // Store raw API response for complex rendering
+  rawApiResponse?: ChatResponseType
 }
 
 const initialMessages: Message[] = []
@@ -74,7 +72,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         id: (Date.now() + 1).toString(),
         sender: "bot",
         timestamp: new Date(),
-        rawApiResponse: apiResponse, // Store the raw response
+        rawApiResponse: apiResponse,
       }
       setMessages((prev) => [...prev, botMessage])
     } catch (error) {
@@ -110,7 +108,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         if (response.plan === "Outreach") {
           return <OutreachUpsellCard onUnlock={() => handleSendMessage(`Activate ${response.plan} plan`)} />
         }
-        return <p className="text-sm whitespace-pre-wrap">{response.content}</p> // Fallback
+        return <p className="text-sm whitespace-pre-wrap">{response.content}</p>
       case "investor_results":
         return (
           <>
@@ -147,8 +145,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue(suggestion)
-    // Optionally send message immediately:
-    // handleSendMessage(suggestion);
   }
 
   return (
@@ -196,7 +192,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                     msg.sender === "bot"
                       ? "p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700"
                       : "",
-                    msg.sender === "bot" && msg.rawApiResponse?.type === "investor_results" ? "w-full" : "", // Make table full width
+                    msg.sender === "bot" && msg.rawApiResponse?.type === "investor_results" ? "w-full" : "",
                   )}
                 >
                   {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
@@ -282,9 +278,9 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 variant="ghost"
                 size="icon"
                 className="text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full w-8 h-8"
-                aria-label="Attach image"
+                aria-label="Upload file"
               >
-                <ImagePlus className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -296,10 +292,10 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
               </Button>
               <Button
                 variant={isDeepResearch ? "secondary" : "ghost"}
-                size="icon"
+                size="sm"
                 onClick={() => setIsDeepResearch(!isDeepResearch)}
                 className={cn(
-                  "rounded-full w-8 h-8",
+                  "rounded-full px-3 py-1 h-8 text-xs",
                   isDeepResearch
                     ? "bg-blue-100 dark:bg-blue-700 text-blue-600 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-600"
                     : "text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700",
@@ -307,12 +303,9 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 aria-label="Toggle Deep Research"
                 aria-pressed={isDeepResearch}
               >
-                <BrainCircuit className="h-4 w-4" />
+                Deep Research
               </Button>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              0BullShit can make mistakes. Consider checking important information.
-            </p>
           </div>
         </div>
       </div>

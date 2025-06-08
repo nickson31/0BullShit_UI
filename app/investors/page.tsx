@@ -84,7 +84,7 @@ export default function InvestorsPage({ params }: PageProps) {
             <InvestorCard
               key={investor.id}
               id={investor.id}
-              projectId={params.projectId}
+              projectId={"p1"}
               name={investor.Company_Name}
               company={investor.Company_Name}
               location={investor.Company_Location}

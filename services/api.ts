@@ -149,16 +149,33 @@ export const api = {
     return fetchApi(`/projects/${projectId}/templates`)
   },
 
-  // This function might be redundant if sentiment is handled via /chat orchestrator
-  // but keeping it if direct sentiment update is needed.
-  // The backend's /chat -> set_entity_sentiment handles this.
-  // async updateInvestorSentiment(projectId: string, entityId: string, sentiment: "like" | "dislike"): Promise<any> {
-  //   return fetchApi(`/projects/${projectId}/sentiment`, { // This endpoint doesn't exist in app.py
-  //     method: "POST",
-  //     body: JSON.stringify({
-  //       entity_id: entityId,
-  //       sentiment: sentiment,
-  //     }),
-  //   });
-  // }
+  async getSavedItems(projectId: string, type: "investors" | "employees"): Promise<any[]> {
+    // This will call a new backend endpoint: GET /projects/{projectId}/saved?type={type}
+    return fetchApi(`/projects/${projectId}/saved?type=${type}`)
+  },
+
+  async getUnwantedItems(projectId: string): Promise<any[]> {
+    // This will call a new backend endpoint: GET /projects/{projectId}/unwanted
+    return fetchApi(`/projects/${projectId}/unwanted`)
+  },
+
+  async removeSentiment(sentimentId: string): Promise<{ message: string }> {
+    // This will call a new backend endpoint: DELETE /sentiments/{sentimentId}
+    return fetchApi(`/sentiments/${sentimentId}`, {
+      method: "DELETE",
+    })
+  },
+
+  // This function sends a message to the main chat orchestrator to trigger the sentiment update tool.
+  async updateInvestorSentiment(
+    projectId: string,
+    entityId: string,
+    sentiment: "like" | "dislike",
+  ): Promise<ChatResponseType> {
+    const message = `Set sentiment for investor ${entityId} to ${sentiment}`
+    return this.chat({
+      project_id: projectId,
+      message: message,
+    })
+  },
 }
