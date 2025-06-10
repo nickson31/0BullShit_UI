@@ -6,7 +6,7 @@ interface ChatRequest {
 }
 
 // Updated types based on your backend response types
-interface InvestorResult {
+export interface InvestorResult {
   id: string
   Company_Name: string
   Company_Description: string
@@ -20,11 +20,12 @@ interface InvestorResult {
   Score?: string
 }
 
-interface EmployeeResult {
+export interface EmployeeResult {
   id: string
   fullName: string
   headline: string
   current_job_title: string
+  current_company_name?: string // Added for grouping
   location: string
   linkedinUrl: string
   email: string
@@ -67,21 +68,14 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
       credentials: "include",
     })
 
-    // Log the response for debugging
-    console.log(`API ${endpoint} response status:`, response.status)
-
     if (!response.ok) {
       let errorMessage = `API request failed with status ${response.status}`
       try {
-        const errorData = await response.text() // Use text() first to see raw response
-        console.log(`API ${endpoint} error response:`, errorData)
-
-        // Try to parse as JSON
+        const errorData = await response.text()
         try {
           const jsonError = JSON.parse(errorData)
           errorMessage = jsonError.message || jsonError.detail || jsonError.error || errorMessage
         } catch {
-          // If not JSON, use the text as error message
           errorMessage = errorData || errorMessage
         }
       } catch (e) {
@@ -90,17 +84,14 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
       throw new Error(errorMessage)
     }
 
-    // Try to parse response as JSON
     const responseText = await response.text()
     if (!responseText) {
-      return {} // Return empty object for empty responses
+      return {}
     }
-
     try {
       return JSON.parse(responseText)
     } catch (e) {
-      console.warn(`Response from ${endpoint} is not valid JSON:`, responseText)
-      return { message: responseText } // Return as message if not JSON
+      return { message: responseText }
     }
   } catch (error) {
     console.error(`API request to ${endpoint} failed:`, error)
@@ -109,6 +100,9 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
 }
 
 export const api = {
+  /**
+   * The single entry point for all conversational searches and actions.
+   */
   async chat(request: ChatRequest): Promise<ChatResponseType> {
     return fetchApi("/chat", {
       method: "POST",
@@ -116,17 +110,9 @@ export const api = {
     })
   },
 
-  async getSessionInfo(): Promise<any> {
-    return fetchApi("/session/info")
-  },
-
-  // Investor endpoints
-  async searchInvestors(query: string, type: "normal" | "deep" = "normal"): Promise<InvestorResult[]> {
-    return fetchApi("/search/investors", {
-      method: "POST",
-      body: JSON.stringify({ query, type }),
-    })
-  },
+  // NOTE: All other direct API calls for search have been removed as per user request.
+  // The app should now use the chat() method for all search-related functionality.
+  // Sentiment and save/get actions remain for now for specific UI interactions (like/dislike, favorites page).
 
   async getSavedInvestors(): Promise<any[]> {
     try {
@@ -138,47 +124,10 @@ export const api = {
     }
   },
 
-  async saveInvestor(investorId: string): Promise<{ message: string }> {
-    try {
-      console.log(`Attempting to save investor: ${investorId}`)
-
-      const result = await fetchApi("/save/investor", {
-        method: "POST",
-        body: JSON.stringify({ investor_id: investorId }),
-      })
-
-      console.log(`Successfully saved investor ${investorId}:`, result)
-      return result
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      console.error(`Failed to save investor ${investorId}:`, errorMessage)
-
-      // Don't throw error, just return a failure message
-      return { message: `Failed to save: ${errorMessage}` }
-    }
-  },
-
   async updateInvestorSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
-    try {
-      return await fetchApi("/sentiment", {
-        method: "POST",
-        body: JSON.stringify({
-          entity_id: entityId,
-          entity_type: "investor",
-          sentiment,
-        }),
-      })
-    } catch (error) {
-      console.error(`Failed to update investor sentiment ${entityId}:`, error)
-      throw error
-    }
-  },
-
-  // Employee endpoints
-  async searchEmployees(query: string): Promise<any[]> {
-    return fetchApi("/search/employees", {
+    return fetchApi("/sentiment", {
       method: "POST",
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ entity_id: entityId, entity_type: "investor", sentiment }),
     })
   },
 
@@ -192,72 +141,10 @@ export const api = {
     }
   },
 
-  async saveEmployee(employeeId: string): Promise<{ message: string }> {
-    try {
-      console.log(`Attempting to save employee: ${employeeId}`)
-
-      const result = await fetchApi("/save/employee", {
-        method: "POST",
-        body: JSON.stringify({ employee_id: employeeId }),
-      })
-
-      console.log(`Successfully saved employee ${employeeId}:`, result)
-      return result
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      console.error(`Failed to save employee ${employeeId}:`, errorMessage)
-
-      // Don't throw error, just return a failure message
-      return { message: `Failed to save: ${errorMessage}` }
-    }
-  },
-
   async updateEmployeeSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
-    try {
-      return await fetchApi("/sentiment", {
-        method: "POST",
-        body: JSON.stringify({
-          entity_id: entityId,
-          entity_type: "employee",
-          sentiment,
-        }),
-      })
-    } catch (error) {
-      console.error(`Failed to update employee sentiment ${entityId}:`, error)
-      throw error
-    }
-  },
-
-  // Template generation
-  async generateTemplate(data: any): Promise<any> {
-    return fetchApi("/generate/template", {
+    return fetchApi("/sentiment", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ entity_id: entityId, entity_type: "employee", sentiment }),
     })
   },
-
-  // Legacy methods for compatibility
-  async findInvestors(query: string, deep_research = false): Promise<InvestorResult[]> {
-    return this.searchInvestors(query, deep_research ? "deep" : "normal")
-  },
-
-  async getSavedItems(projectId: string, type: "investors" | "employees"): Promise<any[]> {
-    if (type === "investors") {
-      return this.getSavedInvestors()
-    } else {
-      return this.getSavedEmployees()
-    }
-  },
-
-  async getUnwantedItems(projectId: string): Promise<any[]> {
-    // This might need a specific endpoint or could be handled through session info
-    return []
-  },
-
-  async removeSentiment(sentimentId: string): Promise<{ message: string }> {
-    // This might need a specific endpoint for removing sentiments
-    throw new Error("Remove sentiment endpoint not implemented")
-  },
 }
-
-export type { InvestorResult, EmployeeResult }

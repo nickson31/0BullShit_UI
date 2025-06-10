@@ -1,27 +1,27 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import TextareaAutosize from "react-textarea-autosize"
-import { SendHorizontal, Sparkles, Plus, Mic, Loader2 } from "lucide-react"
+import { SendHorizontal, Sparkles, Plus, Mic, Loader2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-import InvestorsResultsTable from "@/components/investors-results-table"
-import EmployeesResultsTable from "@/components/employees-results-table"
+import CompactInvestorCard from "@/components/compact-investor-card" // New component
+import EmployeeFundCard from "@/components/employee-fund-card"
 import DeepAnalysisCard from "@/components/deep-analysis-card"
 import { useToast } from "@/components/ui/use-toast"
 import { useApp } from "@/contexts/AppContext"
-import { api, type ChatResponseType, type EmployeeResult } from "@/services/api"
-import EmployeeFundCard from "@/components/employee-fund-card"
+import { api, type ChatResponseType, type EmployeeResult, type InvestorResult } from "@/services/api"
 
 interface Message {
   id: string
-  text?: string | React.ReactNode
+  text?: string | React.ReactNode // For user messages or simple text bot responses
   sender: "user" | "bot"
   timestamp: Date
   rawApiResponse?: ChatResponseType
+  investorResultsForEmployeeSearch?: InvestorResult[] // Store investor results if "Find Employees" is clicked
 }
 
 const initialMessages: Message[] = []
@@ -46,12 +46,14 @@ const loadingMessages = {
     "Preparando la lista final. ¡Casi listo!",
   ],
   employees: [
-    "Escaneando perfiles de LinkedIn...",
-    "Identificando empleados clave en los fondos de inversión...",
+    "Escaneando perfiles de LinkedIn para los fondos seleccionados...",
+    "Identificando empleados clave...",
     "Analizando conexiones profesionales y roles...",
     "Preparando la lista de contactos...",
   ],
 }
+
+const MAX_INITIAL_INVESTOR_CARDS = 5
 
 export default function ChatInterface({ projectId }: { projectId: string }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -64,13 +66,17 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     setLastInvestorResults,
     setLastEmployeeResults,
     setLastDeepAnalysis,
+    favoriteInvestors,
     favoriteEmployees,
     addToFavorites,
     removeFromFavorites,
+    lastInvestorResults, // Declare the variable here
   } = useApp()
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
-  const [employeeLoadingStates, setEmployeeLoadingStates] = useState<Record<string, boolean>>({})
+  const [actionLoadingStates, setActionLoadingStates] = useState<Record<string, boolean>>({}) // For like/dislike on cards
+
+  const [showAllInvestors, setShowAllInvestors] = useState<Record<string, boolean>>({}) // messageId: boolean
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -82,239 +88,300 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   }, [messages])
 
   const simulateLoadingMessages = (type: "deep" | "normal" | "employees") => {
-    const messages = loadingMessages[type]
+    const currentLoadingMessages = loadingMessages[type]
     const duration = type === "deep" ? 10000 : type === "employees" ? 6500 : 5000
-    const interval = duration / messages.length
+    const interval = duration / currentLoadingMessages.length
 
     let currentIndex = 0
-    setLoadingMessage(messages[0])
+    setLoadingMessage(currentLoadingMessages[0])
 
-    const loadingInterval = setInterval(() => {
+    const loadingIntervalId = setInterval(() => {
       currentIndex++
-      if (currentIndex < messages.length) {
-        setLoadingMessage(messages[currentIndex])
+      if (currentIndex < currentLoadingMessages.length) {
+        setLoadingMessage(currentLoadingMessages[currentIndex])
       } else {
-        clearInterval(loadingInterval)
+        clearInterval(loadingIntervalId)
       }
     }, interval)
-
-    return () => clearInterval(loadingInterval)
+    return () => clearInterval(loadingIntervalId)
   }
 
-  const handleSendMessage = async (text?: string) => {
-    const messageText = text || inputValue
-    if (messageText.trim() === "" || isLoading) return
+  const handleSendMessage = useCallback(
+    async (text?: string, relatedInvestors?: InvestorResult[]) => {
+      const messageText = text || inputValue
+      if (messageText.trim() === "" || isLoading) return
 
-    const newUserMessage: Message = {
-      id: Date.now().toString(),
-      text: messageText,
-      sender: "user",
-      timestamp: new Date(),
-    }
-    setMessages((prev) => [...prev, newUserMessage])
-    setInputValue("")
-    setIsLoading(true)
-
-    // Determine loading type based on message content
-    let loadingType: "deep" | "normal" | "employees" = "normal"
-    if (messageText.toLowerCase().includes("employee") || messageText.toLowerCase().includes("empleado")) {
-      loadingType = "employees"
-    } else if (
-      isDeepResearch ||
-      messageText.toLowerCase().includes("deep") ||
-      messageText.toLowerCase().includes("análisis profundo")
-    ) {
-      loadingType = "deep"
-    }
-
-    const clearLoadingMessages = simulateLoadingMessages(loadingType)
-
-    try {
-      const apiResponse = await api.chat({
-        message: messageText,
-      })
-
-      clearLoadingMessages()
-      setLoadingMessage("")
-
-      // Store results in global context for persistence AND auto-save
-      if (apiResponse.type === "investor_results_normal") {
-        setLastInvestorResults(apiResponse.search_results.results)
-        setLastDeepAnalysis(null)
-      } else if (apiResponse.type === "investor_results_deep") {
-        setLastInvestorResults(apiResponse.search_results.results)
-        setLastDeepAnalysis(apiResponse.search_results.deep_analysis)
-      } else if (apiResponse.type === "employee_results") {
-        setLastEmployeeResults(apiResponse.search_results.employees)
-      }
-
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
+      const newUserMessage: Message = {
+        id: Date.now().toString(),
+        text: messageText,
+        sender: "user",
         timestamp: new Date(),
-        rawApiResponse: apiResponse,
       }
-      setMessages((prev) => [...prev, botMessage])
-    } catch (error) {
-      clearLoadingMessages()
-      setLoadingMessage("")
+      setMessages((prev) => [...prev, newUserMessage])
+      if (!text) {
+        // Only clear input if it's a direct user message, not programmatic
+        setInputValue("")
+      }
+      setIsLoading(true)
 
-      const errorResponseMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        timestamp: new Date(),
-        text: `Error: ${(error as Error).message || "Failed to get response from 0Bullshit."}`,
+      let loadingType: "deep" | "normal" | "employees" = "normal"
+      if (
+        messageText.toLowerCase().includes("employee") ||
+        messageText.toLowerCase().includes("empleado") ||
+        relatedInvestors
+      ) {
+        loadingType = "employees"
+      } else if (
+        isDeepResearch ||
+        messageText.toLowerCase().includes("deep") ||
+        messageText.toLowerCase().includes("análisis profundo")
+      ) {
+        loadingType = "deep"
       }
-      setMessages((prev) => [...prev, errorResponseMessage])
-      toast({
-        title: "API Error",
-        description: (error as Error).message || "Failed to send message. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
+
+      const clearLoadingInterval = simulateLoadingMessages(loadingType)
+
+      try {
+        const apiResponse = await api.chat({ message: messageText })
+        clearLoadingInterval()
+        setLoadingMessage("")
+
+        if (apiResponse.type === "investor_results_normal") {
+          setLastInvestorResults(apiResponse.search_results.results)
+          setLastDeepAnalysis(null)
+        } else if (apiResponse.type === "investor_results_deep") {
+          setLastInvestorResults(apiResponse.search_results.results)
+          setLastDeepAnalysis(apiResponse.search_results.deep_analysis)
+        } else if (apiResponse.type === "employee_results") {
+          setLastEmployeeResults(apiResponse.search_results.employees)
+        }
+
+        const botMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: "bot",
+          timestamp: new Date(),
+          rawApiResponse: apiResponse,
+          investorResultsForEmployeeSearch:
+            apiResponse.type === "investor_results_normal" || apiResponse.type === "investor_results_deep"
+              ? apiResponse.search_results.results
+              : undefined,
+        }
+        setMessages((prev) => [...prev, botMessage])
+      } catch (error) {
+        clearLoadingInterval()
+        setLoadingMessage("")
+        const errorResponseMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          sender: "bot",
+          timestamp: new Date(),
+          text: `Error: ${(error as Error).message || "Failed to get response from 0Bullshit."}`,
+        }
+        setMessages((prev) => [...prev, errorResponseMessage])
+        toast({
+          title: "API Error",
+          description: (error as Error).message || "Failed to send message. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [inputValue, isLoading, isDeepResearch, toast, setLastInvestorResults, setLastEmployeeResults, setLastDeepAnalysis],
+  )
+
+  const handleInvestorLikeDislike = useCallback(
+    async (investorId: string, action: "like" | "dislike") => {
+      setActionLoadingStates((prev) => ({ ...prev, [investorId]: true }))
+      try {
+        await api.updateInvestorSentiment(investorId, action)
+        const investor =
+          lastInvestorResults.find((inv) => inv.id === investorId) ||
+          favoriteInvestors.find((inv) => inv.id === investorId)
+
+        if (investor) {
+          if (action === "like") {
+            addToFavorites(investor, "investor")
+            toast({ title: "Investor Liked", description: `${investor.Company_Name} added to favorites.` })
+          } else {
+            removeFromFavorites(investorId, "investor")
+            toast({ title: "Investor Disliked", description: `${investor.Company_Name} removed from favorites.` })
+          }
+        }
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to update investor status.", variant: "destructive" })
+      } finally {
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+      }
+    },
+    [addToFavorites, removeFromFavorites, toast, lastInvestorResults, favoriteInvestors],
+  )
+
+  const handleEmployeeLikeDislike = useCallback(
+    async (employee: EmployeeResult, action: "like" | "dislike") => {
+      setActionLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+      try {
+        await api.updateEmployeeSentiment(employee.id, action)
+        if (action === "like") {
+          addToFavorites(employee, "employee")
+          toast({ title: "Employee Liked", description: `${employee.fullName} added to favorites.` })
+        } else {
+          removeFromFavorites(employee.id, "employee")
+          toast({ title: "Employee Disliked", description: `${employee.fullName} removed from favorites.` })
+        }
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to update employee status.", variant: "destructive" })
+      } finally {
+        setActionLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
+      }
+    },
+    [addToFavorites, removeFromFavorites, toast],
+  )
+
+  const handleFindEmployeesForFunds = (investors: InvestorResult[]) => {
+    if (!investors || investors.length === 0) {
+      toast({ title: "No Investors", description: "No investors to find employees for.", variant: "default" })
+      return
     }
+    const fundNames = investors.map((inv) => inv.Company_Name).join(", ")
+    const prompt = `Find employees for the following funds: ${fundNames}`
+    handleSendMessage(prompt, investors)
   }
 
-  const renderBotMessageContent = (response: ChatResponseType) => {
+  const renderBotMessageContent = (message: Message) => {
+    const response = message.rawApiResponse
+    if (!response) return <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+
+    const messageId = message.id
+
     switch (response.type) {
       case "investor_results_normal":
-        return (
-          <div className="space-y-4">
-            <p className="text-sm">
-              Encontré {response.search_results.results.length} inversores que podrían estar interesados en tu proyecto:
-            </p>
-            {/* El componente InvestorsResultsTable ya tiene su propio scroll y max-height */}
-            <InvestorsResultsTable
-              investors={response.search_results.results}
-              projectId={projectId}
-              showLimit={true}
-              maxResults={5}
-            />
-          </div>
-        )
-
       case "investor_results_deep":
+        const investors = response.search_results.results
+        const displayedInvestors = showAllInvestors[messageId]
+          ? investors
+          : investors.slice(0, MAX_INITIAL_INVESTOR_CARDS)
+
         return (
-          <div className="space-y-4">
-            <p className="text-sm">
-              Análisis profundo completado. Encontré {response.search_results.results.length} inversores con análisis
-              detallado:
+          <div className="space-y-3">
+            {response.type === "investor_results_deep" && response.search_results.deep_analysis && (
+              <DeepAnalysisCard analysis={response.search_results.deep_analysis} />
+            )}
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              Encontré {investors.length} inversores que podrían estar interesados:
             </p>
-            <DeepAnalysisCard analysis={response.search_results.deep_analysis} />
-            <InvestorsResultsTable
-              investors={response.search_results.results}
-              projectId={projectId}
-              showLimit={true}
-              maxResults={5}
-            />
+            <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+              {displayedInvestors.map((investor) => (
+                <CompactInvestorCard
+                  key={investor.id}
+                  investor={investor}
+                  onLike={(id) => handleInvestorLikeDislike(id, "like")}
+                  onDislike={(id) => handleInvestorLikeDislike(id, "dislike")}
+                  isFavorite={favoriteInvestors.some((fav) => fav.id === investor.id)}
+                  isLoading={actionLoadingStates[investor.id] || false}
+                />
+              ))}
+            </div>
+            {investors.length > MAX_INITIAL_INVESTOR_CARDS && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setShowAllInvestors((prev) => ({ ...prev, [messageId]: !prev[messageId] }))}
+              >
+                {showAllInvestors[messageId] ? "Show Less" : `Show All ${investors.length} Investors`}
+              </Button>
+            )}
+            {message.investorResultsForEmployeeSearch && message.investorResultsForEmployeeSearch.length > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => handleFindEmployeesForFunds(message.investorResultsForEmployeeSearch!)}
+              >
+                <Search className="mr-2 h-4 w-4" /> Find Employees for these funds
+              </Button>
+            )}
           </div>
         )
 
       case "employee_results":
-        const handleEmployeeLike = async (employee: EmployeeResult) => {
-          setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
-          try {
-            await api.updateEmployeeSentiment(employee.id, "like")
-            addToFavorites(employee, "employee")
-            toast({
-              title: "Employee Liked",
-              description: "Employee added to your favorites",
-            })
-          } catch (error) {
-            toast({
-              title: "Error",
-              description: "Failed to update employee status",
-              variant: "destructive",
-            })
-          } finally {
-            setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
-          }
-        }
+        const employeesByFund = response.search_results.employees_by_fund
+        const allEmployees = response.search_results.employees
 
-        const handleEmployeeDislike = async (employee: EmployeeResult) => {
-          setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
-          try {
-            await api.updateEmployeeSentiment(employee.id, "dislike")
-            removeFromFavorites(employee.id, "employee")
-            toast({
-              title: "Employee Dismissed",
-              description: "Employee marked as not interested",
-            })
-          } catch (error) {
-            toast({
-              title: "Error",
-              description: "Failed to update employee status",
-              variant: "destructive",
-            })
-          } finally {
-            setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
-          }
-        }
-
-        const isEmployeeInFavorites = (employeeId: string) => {
-          return Array.isArray(favoriteEmployees) && favoriteEmployees.some((emp) => emp.id === employeeId)
+        if (
+          (!employeesByFund || Object.keys(employeesByFund).length === 0) &&
+          (!allEmployees || allEmployees.length === 0)
+        ) {
+          return <p className="text-sm">No employees found for the specified criteria.</p>
         }
 
         return (
-          <div className="space-y-4">
-            <p className="text-sm">Encontré {response.search_results.employees.length} empleados relevantes:</p>
-
-            {/* Lista principal de empleados con altura máxima y scroll */}
-            <div className="max-h-[300px] overflow-auto border rounded-md bg-white dark:bg-slate-800">
-              <EmployeesResultsTable
-                employees={response.search_results.employees}
-                projectId={projectId}
-                showLimit={false}
-              />
-            </div>
-
-            {/* Empleados agrupados por fondo usando el nuevo componente de tarjeta */}
-            {response.search_results.employees_by_fund &&
-              Object.keys(response.search_results.employees_by_fund).length > 0 && (
-                <div className="mt-4">
-                  <h4 className="font-semibold mb-2">Empleados agrupados por fondo:</h4>
-                  {Object.entries(response.search_results.employees_by_fund).map(([fund, employees]) => (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-700 dark:text-slate-300">Resultados de empleados:</p>
+            <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+              {employeesByFund && Object.keys(employeesByFund).length > 0
+                ? Object.entries(employeesByFund).map(([fundName, fundEmployees]) => (
                     <EmployeeFundCard
-                      key={fund}
-                      fundName={fund}
-                      employees={employees}
-                      onLike={handleEmployeeLike}
-                      onDislike={handleEmployeeDislike}
-                      isEmployeeInFavorites={isEmployeeInFavorites}
-                      loadingStates={employeeLoadingStates}
+                      key={fundName}
+                      fundName={fundName}
+                      employees={fundEmployees}
+                      onLike={(emp) => handleEmployeeLikeDislike(emp, "like")}
+                      onDislike={(emp) => handleEmployeeLikeDislike(emp, "dislike")}
+                      isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
+                      loadingStates={actionLoadingStates}
                     />
-                  ))}
-                </div>
-              )}
+                  ))
+                : allEmployees && allEmployees.length > 0
+                  ? // Fallback if employees_by_fund is not available, group them by current_company_name
+                    // This is a simplified grouping, ideally backend provides this structure.
+                    Object.entries(
+                      allEmployees.reduce(
+                        (acc, emp) => {
+                          const company = emp.current_job_title?.split(" at ")[1] || "Unknown Fund" // Basic parsing
+                          if (!acc[company]) acc[company] = []
+                          acc[company].push(emp)
+                          return acc
+                        },
+                        {} as Record<string, EmployeeResult[]>,
+                      ),
+                    ).map(([fundName, fundEmployees]) => (
+                      <EmployeeFundCard
+                        key={fundName}
+                        fundName={fundName}
+                        employees={fundEmployees}
+                        onLike={(emp) => handleEmployeeLikeDislike(emp, "like")}
+                        onDislike={(emp) => handleEmployeeLikeDislike(emp, "dislike")}
+                        isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
+                        loadingStates={actionLoadingStates}
+                      />
+                    ))
+                  : null}
+            </div>
           </div>
         )
 
       case "text_response":
         return <p className="text-sm whitespace-pre-wrap">{response.content}</p>
-
       case "error":
         return <p className="text-sm text-red-600 dark:text-red-400 whitespace-pre-wrap">{response.content}</p>
-
       default:
         console.error("Unhandled response type:", response)
-        return (
-          <p className="text-sm text-orange-600 dark:text-orange-400">
-            Received an unhandled message type: {(response as any).type}
-          </p>
-        )
+        return <p className="text-sm text-orange-500">Received an unhandled message type.</p>
     }
   }
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue(suggestion)
+    // Optionally send message directly: handleSendMessage(suggestion);
   }
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
+    <div className="flex flex-col h-full max-w-3xl mx-auto w-full">
+      {" "}
+      {/* Max width for chat content area */}
       {messages.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-          <h1 className="text-5xl font-medium mb-4">
+          <h1 className="text-4xl md:text-5xl font-medium mb-4">
             <span className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 bg-clip-text text-transparent">
               Hello, {userName}
             </span>
@@ -350,25 +417,16 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 )}
                 <div
                   className={cn(
-                    "max-w-[calc(100%-4rem)]", // Ancho máximo para mensajes de texto
-                    msg.sender === "user" ? "p-3 rounded-xl shadow-sm bg-blue-600 text-white rounded-br-none" : "",
-                    msg.sender === "bot"
-                      ? "p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700"
-                      : "",
-                    // Si el mensaje del bot contiene una tabla, permitir que ocupe más ancho si es necesario,
-                    // pero el scroll estará DENTRO de la tabla.
-                    msg.sender === "bot" &&
-                      msg.rawApiResponse &&
-                      (msg.rawApiResponse.type === "investor_results_normal" ||
-                        msg.rawApiResponse.type === "investor_results_deep" ||
-                        msg.rawApiResponse.type === "employee_results")
-                      ? "w-full" // Permitir que el contenedor del mensaje del bot use el ancho disponible
-                      : "",
+                    "rounded-xl shadow-sm text-sm",
+                    msg.sender === "user"
+                      ? "p-3 bg-blue-600 text-white rounded-br-none"
+                      : "p-3 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700",
+                    // Ensure bot message container doesn't try to be overly wide by default
+                    // The internal content (cards) will manage its own width and scrolling.
+                    msg.sender === "bot" ? "w-full max-w-xl" : "max-w-[80%]",
                   )}
                 >
-                  {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-                  {msg.rawApiResponse && renderBotMessageContent(msg.rawApiResponse)}
-
+                  {renderBotMessageContent(msg)}
                   <p
                     className={cn(
                       "text-xs mt-1.5",
@@ -407,8 +465,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
           </div>
         </ScrollArea>
       )}
-
-      <div className="px-4 sm:px-0 pb-3 pt-2 bg-white dark:bg-slate-900">
+      <div className="px-4 sm:px-0 pb-3 pt-2 bg-white dark:bg-slate-900 border-t dark:border-slate-700">
         <div className="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2">
           <div className="flex items-end">
             <TextareaAutosize
