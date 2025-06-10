@@ -2,9 +2,9 @@
 
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
-import { SendHorizontal, Sparkles, Plus, Mic } from "lucide-react" // Removed BrainCircuit from here
+import TextareaAutosize from "react-textarea-autosize"
+import { SendHorizontal, Sparkles, Plus, Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
@@ -248,7 +248,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       <div className="px-4 sm:px-0 pb-3 pt-2 bg-white dark:bg-slate-900">
         <div className="bg-slate-100 dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2">
           <div className="flex items-end">
-            <Textarea
+            <TextareaAutosize
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => {
@@ -258,8 +258,10 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 }
               }}
               placeholder="Ask 0BullShit..."
-              className="flex-1 bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 resize-none min-h-[44px] max-h-40 py-2.5 px-3 text-sm"
-              rows={1}
+              className="flex-1 bg-slate-100 dark:bg-slate-800 border-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none resize-none min-h-[24px] py-2.5 px-3 text-sm"
+              minRows={1}
+              maxRows={6}
+              style={{ minHeight: "44px" }}
             />
             <Button
               variant="ghost"
