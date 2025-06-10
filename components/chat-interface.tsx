@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-import InvestorResultsTable from "@/components/investor-results-table"
-import GrowthUpsellCard from "@/components/growth-upsell-card"
-import OutreachUpsellCard from "@/components/outreach-upsell-card"
+import InvestorsResultsTable from "@/components/investors-results-table"
+import EmployeesResultsTable from "@/components/employees-results-table"
+import DeepAnalysisCard from "@/components/deep-analysis-card"
 import { useToast } from "@/components/ui/use-toast"
 import { api, type ChatResponseType } from "@/services/api"
 
@@ -25,18 +25,35 @@ interface Message {
 const initialMessages: Message[] = []
 
 const suggestionChipsData = [
-  { text: "Draft an email to a potential investor", icon: Sparkles },
-  { text: "What are common pitfalls in early-stage funding?", icon: Sparkles },
+  { text: "Find investors for my fintech startup", icon: Sparkles },
+  { text: "Search employees at Sequoia Capital", icon: Sparkles },
 ]
+
+const loadingMessages = {
+  deep: [
+    "Analizando 50,000+ fondos de inversión...",
+    "Aplicando algoritmos avanzados de matching...",
+    "Calculando compatibility scores...",
+    "Procesando datos de mercado en tiempo real...",
+  ],
+  normal: ["Buscando inversores relevantes...", "Analizando perfiles de inversión...", "Calculando compatibilidad..."],
+  employees: [
+    "Escaneando perfiles de LinkedIn...",
+    "Identificando empleados clave...",
+    "Analizando conexiones profesionales...",
+    "Procesando datos de contacto...",
+  ],
+}
 
 export default function ChatInterface({ projectId }: { projectId: string }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [inputValue, setInputValue] = useState("")
   const [isDeepResearch, setIsDeepResearch] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const userName = "Nikita" // Placeholder
+  const userName = "Nikita"
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState("")
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -46,6 +63,26 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       }
     }
   }, [messages])
+
+  const simulateLoadingMessages = (type: "deep" | "normal" | "employees") => {
+    const messages = loadingMessages[type]
+    const duration = type === "deep" ? 10000 : type === "employees" ? 6500 : 5000
+    const interval = duration / messages.length
+
+    let currentIndex = 0
+    setLoadingMessage(messages[0])
+
+    const loadingInterval = setInterval(() => {
+      currentIndex++
+      if (currentIndex < messages.length) {
+        setLoadingMessage(messages[currentIndex])
+      } else {
+        clearInterval(loadingInterval)
+      }
+    }, interval)
+
+    return () => clearInterval(loadingInterval)
+  }
 
   const handleSendMessage = async (text?: string) => {
     const messageText = text || inputValue
@@ -61,11 +98,27 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     setInputValue("")
     setIsLoading(true)
 
+    // Determine loading type based on message content
+    let loadingType: "deep" | "normal" | "employees" = "normal"
+    if (messageText.toLowerCase().includes("employee") || messageText.toLowerCase().includes("empleado")) {
+      loadingType = "employees"
+    } else if (
+      isDeepResearch ||
+      messageText.toLowerCase().includes("deep") ||
+      messageText.toLowerCase().includes("análisis profundo")
+    ) {
+      loadingType = "deep"
+    }
+
+    const clearLoadingMessages = simulateLoadingMessages(loadingType)
+
     try {
-      // Use the correct chat endpoint with just message
       const apiResponse = await api.chat({
         message: messageText,
       })
+
+      clearLoadingMessages()
+      setLoadingMessage("")
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -75,6 +128,9 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       }
       setMessages((prev) => [...prev, botMessage])
     } catch (error) {
+      clearLoadingMessages()
+      setLoadingMessage("")
+
       const errorResponseMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
@@ -94,51 +150,63 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
 
   const renderBotMessageContent = (response: ChatResponseType) => {
     switch (response.type) {
-      case "onboarding_question":
+      case "investor_results_normal":
+        return (
+          <div className="space-y-4">
+            <p className="text-sm">
+              Encontré {response.search_results.results.length} inversores que podrían estar interesados en tu proyecto:
+            </p>
+            <InvestorsResultsTable investors={response.search_results.results} projectId={projectId} />
+          </div>
+        )
+
+      case "investor_results_deep":
+        return (
+          <div className="space-y-4">
+            <p className="text-sm">
+              Análisis profundo completado. Encontré {response.search_results.results.length} inversores con análisis
+              detallado:
+            </p>
+            <DeepAnalysisCard analysis={response.search_results.deep_analysis} />
+            <InvestorsResultsTable investors={response.search_results.results} projectId={projectId} />
+          </div>
+        )
+
+      case "employee_results":
+        return (
+          <div className="space-y-4">
+            <p className="text-sm">Encontré {response.search_results.employees.length} empleados relevantes:</p>
+            <EmployeesResultsTable employees={response.search_results.employees} projectId={projectId} />
+            {response.search_results.employees_by_fund &&
+              Object.keys(response.search_results.employees_by_fund).length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-semibold mb-2">Empleados agrupados por fondo:</h4>
+                  {Object.entries(response.search_results.employees_by_fund).map(([fund, employees]) => (
+                    <div key={fund} className="mb-4">
+                      <h5 className="font-medium text-sm mb-2">
+                        {fund} ({employees.length} empleados)
+                      </h5>
+                      <EmployeesResultsTable employees={employees} projectId={projectId} />
+                    </div>
+                  ))}
+                </div>
+              )}
+          </div>
+        )
+
       case "text_response":
-      case "sentiment_saved":
-      case "plan_confirmed":
+        return <p className="text-sm whitespace-pre-wrap">{response.content}</p>
+
       case "error":
-        return <p className="text-sm whitespace-pre-wrap">{response.content}</p>
-      case "plan_upsell":
-        if (response.plan === "Growth") {
-          return <GrowthUpsellCard onUnlock={() => handleSendMessage(`Activate ${response.plan} plan`)} />
-        }
-        if (response.plan === "Outreach") {
-          return <OutreachUpsellCard onUnlock={() => handleSendMessage(`Activate ${response.plan} plan`)} />
-        }
-        return <p className="text-sm whitespace-pre-wrap">{response.content}</p>
-      case "investor_results":
-        return (
-          <>
-            {response.message && <p className="text-sm mb-2 whitespace-pre-wrap">{response.message}</p>}
-            <InvestorResultsTable investors={response.content} projectId={projectId} />
-          </>
-        )
-      case "outreach_template":
-        return (
-          <div className="text-sm space-y-2">
-            {response.message && <p className="mb-2 whitespace-pre-wrap">{response.message}</p>}
-            <pre className="bg-slate-200 dark:bg-slate-700 p-3 rounded-md whitespace-pre-wrap font-mono text-xs">
-              {response.content.content}
-            </pre>
-          </div>
-        )
-      case "outreach_activated":
-        return (
-          <div className="text-sm space-y-2">
-            <p className="whitespace-pre-wrap">{response.content}</p>
-            {response.next_steps && (
-              <ul className="list-disc list-inside pl-4">
-                {response.next_steps.map((step, i) => (
-                  <li key={i}>{step}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )
+        return <p className="text-sm text-red-600 dark:text-red-400 whitespace-pre-wrap">{response.content}</p>
+
       default:
-        return <p className="text-sm whitespace-pre-wrap">Received an unhandled message type.</p>
+        console.error("Unhandled response type:", response)
+        return (
+          <p className="text-sm text-orange-600 dark:text-orange-400">
+            Received an unhandled message type: {(response as any).type}
+          </p>
+        )
     }
   }
 
@@ -147,7 +215,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="flex flex-col h-full max-w-3xl mx-auto w-full">
+    <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
       {messages.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <h1 className="text-5xl font-medium mb-4">
@@ -191,7 +259,13 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                     msg.sender === "bot"
                       ? "p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700"
                       : "",
-                    msg.sender === "bot" && msg.rawApiResponse?.type === "investor_results" ? "w-full" : "",
+                    msg.sender === "bot" &&
+                      msg.rawApiResponse &&
+                      (msg.rawApiResponse.type === "investor_results_normal" ||
+                        msg.rawApiResponse.type === "investor_results_deep" ||
+                        msg.rawApiResponse.type === "employee_results")
+                      ? "w-full max-w-none"
+                      : "",
                   )}
                 >
                   {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
@@ -216,26 +290,31 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 )}
               </div>
             ))}
-            {isLoading && messages.length > 0 && (
+            {isLoading && (
               <div className="flex items-start gap-3 justify-start">
                 <Avatar className="h-8 w-8 border border-slate-200 dark:border-slate-700 flex-shrink-0">
                   <AvatarImage src="/placeholder.svg?width=32&height=32" alt="0BullShit" />
                   <AvatarFallback>0B</AvatarFallback>
                 </Avatar>
                 <div className="p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700">
-                  <div className="flex space-x-1.5 items-center">
-                    <div
-                      className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0s" }}
-                    />
-                    <div
-                      className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.1s" }}
-                    />
-                    <div
-                      className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.2s" }}
-                    />
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div
+                        className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0s" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.1s" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.2s" }}
+                      />
+                    </div>
+                    {loadingMessage && (
+                      <span className="text-sm text-slate-600 dark:text-slate-400 ml-2">{loadingMessage}</span>
+                    )}
                   </div>
                 </div>
               </div>

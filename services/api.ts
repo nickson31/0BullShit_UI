@@ -5,7 +5,7 @@ interface ChatRequest {
   message: string
 }
 
-// More specific types for ChatResponse based on app.py
+// Updated types based on your backend response types
 interface InvestorResult {
   id: string
   Company_Name: string
@@ -20,22 +20,38 @@ interface InvestorResult {
   Score?: string
 }
 
-interface OutreachTemplate {
-  template_id: string
-  content: string
-  platform: string
-  target_entity_type: string
-  target_info: Record<string, any>
+interface EmployeeResult {
+  id: string
+  fullName: string
+  headline: string
+  current_job_title: string
+  location: string
+  linkedinUrl: string
+  email: string
+  profilePic?: string
 }
 
 export type ChatResponseType =
-  | { type: "onboarding_question"; content: string }
-  | { type: "plan_upsell"; content: string; plan: string; price: string }
-  | { type: "plan_confirmed"; content: string }
-  | { type: "investor_results"; content: InvestorResult[]; message?: string }
-  | { type: "sentiment_saved"; content: string }
-  | { type: "outreach_template"; content: OutreachTemplate; message?: string }
-  | { type: "outreach_activated"; content: string; next_steps?: string[] }
+  | {
+      type: "investor_results_normal"
+      search_results: {
+        results: InvestorResult[]
+      }
+    }
+  | {
+      type: "investor_results_deep"
+      search_results: {
+        results: InvestorResult[]
+        deep_analysis: string
+      }
+    }
+  | {
+      type: "employee_results"
+      search_results: {
+        employees: EmployeeResult[]
+        employees_by_fund?: Record<string, EmployeeResult[]>
+      }
+    }
   | { type: "text_response"; content: string }
   | { type: "error"; content: string }
 
@@ -167,4 +183,4 @@ export const api = {
   },
 }
 
-export type { InvestorResult }
+export type { InvestorResult, EmployeeResult }
