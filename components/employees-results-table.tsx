@@ -79,8 +79,8 @@ export default function EmployeesResultsTable({
   return (
     <div className="space-y-4">
       {/* Contenedor con scroll horizontal forzado */}
-      <div className="w-full overflow-x-auto border rounded-md bg-white dark:bg-slate-800">
-        <div style={{ minWidth: "900px" }}>
+      <div className="w-full bg-white dark:bg-slate-800">
+        <div className="max-h-[400px] overflow-auto" style={{ minWidth: "100%" }}>
           <Table>
             <TableHeader>
               <TableRow>

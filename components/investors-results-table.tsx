@@ -5,10 +5,11 @@ import type { InvestorResult } from "@/services/api"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ExternalLink, ThumbsUp, ThumbsDown } from "lucide-react"
+import { ExternalLink, ThumbsUp, ThumbsDown, Users } from "lucide-react"
 import { api } from "@/services/api"
 import { useToast } from "@/components/ui/use-toast"
 import { useApp } from "@/contexts/AppContext"
+import { useRouter } from "next/navigation"
 
 interface InvestorsResultsTableProps {
   investors: InvestorResult[]
@@ -27,15 +28,17 @@ export default function InvestorsResultsTable({
   const { addToFavorites, removeFromFavorites, favoriteInvestors } = useApp()
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
   const [isExpanded, setIsExpanded] = useState(false)
+  const router = useRouter()
 
   const displayedInvestors = showLimit && !isExpanded ? investors.slice(0, maxResults) : investors
   const hasMore = showLimit && !isExpanded && investors.length > maxResults
 
-  // Remover auto-guardado de las tablas para evitar duplicación
-  // El auto-guardado se hace solo desde el chat-interface
-
   const handleToggleExpand = () => {
     setIsExpanded(!isExpanded)
+  }
+
+  const handleViewEmployees = (companyName: string) => {
+    router.push(`/employees?company=${encodeURIComponent(companyName)}`)
   }
 
   const handleSentiment = async (investor: InvestorResult, sentiment: "like" | "dislike") => {
@@ -48,7 +51,7 @@ export default function InvestorsResultsTable({
         addToFavorites(investor, "investor")
         toast({
           title: "Investor Liked",
-          description: "Investor added to your favorites",
+          description: `${investor.Company_Name} has been added to your favorites.`,
         })
       } else {
         removeFromFavorites(investor.id, "investor")
@@ -58,6 +61,7 @@ export default function InvestorsResultsTable({
         })
       }
     } catch (error) {
+      console.error("Error handling sentiment:", error)
       toast({
         title: "Error",
         description: "Failed to update investor status. Please try again.",
@@ -78,25 +82,30 @@ export default function InvestorsResultsTable({
 
   return (
     <div className="space-y-4">
-      {/* Contenedor con scroll horizontal forzado */}
-      <div className="w-full overflow-x-auto border rounded-md bg-white dark:bg-slate-800">
+      {/* Contenedor principal de la tabla con overflow y max-height */}
+      <div className="w-full overflow-x-auto border rounded-md bg-white dark:bg-slate-800 max-h-[400px]">
+        {/* Este div interno asegura que la tabla tenga un ancho mínimo para el scroll */}
         <div style={{ minWidth: "1200px" }}>
+          {" "}
+          {/* Ajustado minWidth para mejor visualización */}
           <Table>
             <TableHeader>
               <TableRow>
+                {/* Columna Company fija */}
                 <TableHead className="font-semibold w-[200px] sticky left-0 bg-white dark:bg-slate-800 z-10 border-r">
                   Company
                 </TableHead>
-                <TableHead className="font-semibold w-[300px]">Description</TableHead>
-                <TableHead className="font-semibold w-[180px]">Stage(s)</TableHead>
+                <TableHead className="font-semibold w-[250px]">Description</TableHead>
+                <TableHead className="font-semibold w-[150px]">Stage(s)</TableHead>
                 <TableHead className="font-semibold w-[150px]">Location</TableHead>
-                <TableHead className="font-semibold w-[250px]">Categories</TableHead>
+                <TableHead className="font-semibold w-[200px]">Categories</TableHead>
                 <TableHead className="text-center font-semibold w-[180px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayedInvestors.map((investor) => (
                 <TableRow key={investor.id}>
+                  {/* Celda Company fija */}
                   <TableCell className="w-[200px] sticky left-0 bg-white dark:bg-slate-800 z-10 border-r">
                     <div className="font-medium text-sm">{investor.Company_Name}</div>
                     {investor.Company_Linkedin && (
@@ -110,12 +119,12 @@ export default function InvestorsResultsTable({
                       </a>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600 dark:text-slate-300 w-[300px]">
+                  <TableCell className="text-sm text-slate-600 dark:text-slate-300 w-[250px]">
                     <div className="line-clamp-3 text-xs leading-relaxed" title={investor.Company_Description}>
                       {investor.Company_Description || "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="w-[180px]">
+                  <TableCell className="w-[150px]">
                     <div className="flex flex-wrap gap-1">
                       {(() => {
                         if (Array.isArray(investor.Investing_Stage)) {
@@ -153,7 +162,7 @@ export default function InvestorsResultsTable({
                       {investor.Company_Location || "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="w-[250px]">
+                  <TableCell className="w-[200px]">
                     <div className="flex flex-wrap gap-1">
                       {(() => {
                         let categories: string[] = []
@@ -174,14 +183,23 @@ export default function InvestorsResultsTable({
 
                         return (
                           <>
-                            {categories.slice(0, 3).map((cat, index) => (
-                              <Badge key={`${cat}-${index}`} variant="secondary" className="text-xs whitespace-nowrap">
-                                {cat}
-                              </Badge>
-                            ))}
-                            {categories.length > 3 && (
+                            {categories.slice(0, 2).map(
+                              (
+                                cat,
+                                index, // Mostrar 2 para ahorrar espacio
+                              ) => (
+                                <Badge
+                                  key={`${cat}-${index}`}
+                                  variant="secondary"
+                                  className="text-xs whitespace-nowrap"
+                                >
+                                  {cat}
+                                </Badge>
+                              ),
+                            )}
+                            {categories.length > 2 && (
                               <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                                +{categories.length - 3}
+                                +{categories.length - 2}
                               </Badge>
                             )}
                           </>
@@ -210,6 +228,15 @@ export default function InvestorsResultsTable({
                         className="h-8 w-8 p-0"
                       >
                         <ThumbsDown className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewEmployees(investor.Company_Name)}
+                        title="View Employees"
+                        className="h-8 w-8 p-0"
+                      >
+                        <Users className="h-3 w-3" />
                       </Button>
                     </div>
                   </TableCell>

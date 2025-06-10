@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import TextareaAutosize from "react-textarea-autosize"
-import { SendHorizontal, Sparkles, Plus, Mic } from "lucide-react"
+import { SendHorizontal, Sparkles, Plus, Mic, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,7 +13,8 @@ import EmployeesResultsTable from "@/components/employees-results-table"
 import DeepAnalysisCard from "@/components/deep-analysis-card"
 import { useToast } from "@/components/ui/use-toast"
 import { useApp } from "@/contexts/AppContext"
-import { api, type ChatResponseType } from "@/services/api"
+import { api, type ChatResponseType, type EmployeeResult } from "@/services/api"
+import EmployeeFundCard from "@/components/employee-fund-card"
 
 interface Message {
   id: string
@@ -32,17 +33,23 @@ const suggestionChipsData = [
 
 const loadingMessages = {
   deep: [
-    "Analizando 50,000+ fondos de inversión...",
-    "Aplicando algoritmos avanzados de matching...",
-    "Calculando compatibility scores...",
-    "Procesando datos de mercado en tiempo real...",
+    "Iniciando análisis profundo: esto puede tardar un poco más...",
+    "Revisando portafolios, últimas inversiones y exits de cada fondo...",
+    "Nuestro LLM está leyendo entre líneas para detectar afinidad real...",
+    "Generando un análisis cualitativo para cada inversor potencial...",
+    "Compilando los resultados. La espera valdrá la pena.",
   ],
-  normal: ["Buscando inversores relevantes...", "Analizando perfiles de inversión...", "Calculando compatibilidad..."],
+  normal: [
+    "Accediendo a nuestra base de datos de +50,000 VCs y Business Angels...",
+    "Filtrando por tesis de inversión y startups similares a la tuya...",
+    "Cruzando datos para encontrar el 'perfect match'...",
+    "Preparando la lista final. ¡Casi listo!",
+  ],
   employees: [
     "Escaneando perfiles de LinkedIn...",
-    "Identificando empleados clave...",
-    "Analizando conexiones profesionales...",
-    "Procesando datos de contacto...",
+    "Identificando empleados clave en los fondos de inversión...",
+    "Analizando conexiones profesionales y roles...",
+    "Preparando la lista de contactos...",
   ],
 }
 
@@ -53,9 +60,17 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const userName = "Nikita"
   const { toast } = useToast()
-  const { setLastInvestorResults, setLastEmployeeResults, setLastDeepAnalysis } = useApp()
+  const {
+    setLastInvestorResults,
+    setLastEmployeeResults,
+    setLastDeepAnalysis,
+    favoriteEmployees,
+    addToFavorites,
+    removeFromFavorites,
+  } = useApp()
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
+  const [employeeLoadingStates, setEmployeeLoadingStates] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -126,93 +141,11 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       if (apiResponse.type === "investor_results_normal") {
         setLastInvestorResults(apiResponse.search_results.results)
         setLastDeepAnalysis(null)
-
-        // Auto-guardar inversores con manejo de errores mejorado y sin bloquear
-        if (apiResponse.search_results.results.length > 0) {
-          // No await - ejecutar en background
-          Promise.allSettled(
-            apiResponse.search_results.results.map(async (investor) => {
-              const result = await api.saveInvestor(investor.id)
-              return { success: !result.message.includes("Failed"), id: investor.id, result }
-            }),
-          )
-            .then((results) => {
-              const successful = results.filter((r) => r.status === "fulfilled" && r.value.success).length
-              const failed = results.length - successful
-
-              console.log(`Auto-save investors: ${successful} successful, ${failed} failed`)
-
-              // Solo mostrar toast si hay éxitos
-              if (successful > 0) {
-                toast({
-                  title: "Investors Auto-saved",
-                  description: `${successful} investors saved for template generation${failed > 0 ? ` (${failed} failed)` : ""}`,
-                })
-              }
-            })
-            .catch((error) => {
-              console.error("Auto-save investors error:", error)
-            })
-        }
       } else if (apiResponse.type === "investor_results_deep") {
         setLastInvestorResults(apiResponse.search_results.results)
         setLastDeepAnalysis(apiResponse.search_results.deep_analysis)
-
-        // Auto-guardar inversores con manejo de errores mejorado y sin bloquear
-        if (apiResponse.search_results.results.length > 0) {
-          // No await - ejecutar en background
-          Promise.allSettled(
-            apiResponse.search_results.results.map(async (investor) => {
-              const result = await api.saveInvestor(investor.id)
-              return { success: !result.message.includes("Failed"), id: investor.id, result }
-            }),
-          )
-            .then((results) => {
-              const successful = results.filter((r) => r.status === "fulfilled" && r.value.success).length
-              const failed = results.length - successful
-
-              console.log(`Auto-save deep investors: ${successful} successful, ${failed} failed`)
-
-              if (successful > 0) {
-                toast({
-                  title: "Investors Auto-saved",
-                  description: `${successful} investors saved for template generation${failed > 0 ? ` (${failed} failed)` : ""}`,
-                })
-              }
-            })
-            .catch((error) => {
-              console.error("Auto-save deep investors error:", error)
-            })
-        }
       } else if (apiResponse.type === "employee_results") {
         setLastEmployeeResults(apiResponse.search_results.employees)
-
-        // Auto-guardar empleados con manejo de errores mejorado y sin bloquear
-        if (apiResponse.search_results.employees.length > 0) {
-          // No await - ejecutar en background
-          Promise.allSettled(
-            apiResponse.search_results.employees.map(async (employee) => {
-              const result = await api.saveEmployee(employee.id)
-              return { success: !result.message.includes("Failed"), id: employee.id, result }
-            }),
-          )
-            .then((results) => {
-              const successful = results.filter((r) => r.status === "fulfilled" && r.value.success).length
-              const failed = results.length - successful
-
-              console.log(`Auto-save employees: ${successful} successful, ${failed} failed`)
-
-              if (successful > 0) {
-                toast({
-                  title: "Employees Auto-saved",
-                  description: `${successful} employees saved for template generation${failed > 0 ? ` (${failed} failed)` : ""}`,
-                })
-              }
-            })
-            .catch((error) => {
-              console.error("Auto-save employees error:", error)
-            })
-        }
       }
 
       const botMessage: Message = {
@@ -251,6 +184,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
             <p className="text-sm">
               Encontré {response.search_results.results.length} inversores que podrían estar interesados en tu proyecto:
             </p>
+            {/* El componente InvestorsResultsTable ya tiene su propio scroll y max-height */}
             <InvestorsResultsTable
               investors={response.search_results.results}
               projectId={projectId}
@@ -278,31 +212,78 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         )
 
       case "employee_results":
+        const handleEmployeeLike = async (employee: EmployeeResult) => {
+          setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+          try {
+            await api.updateEmployeeSentiment(employee.id, "like")
+            addToFavorites(employee, "employee")
+            toast({
+              title: "Employee Liked",
+              description: "Employee added to your favorites",
+            })
+          } catch (error) {
+            toast({
+              title: "Error",
+              description: "Failed to update employee status",
+              variant: "destructive",
+            })
+          } finally {
+            setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
+          }
+        }
+
+        const handleEmployeeDislike = async (employee: EmployeeResult) => {
+          setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+          try {
+            await api.updateEmployeeSentiment(employee.id, "dislike")
+            removeFromFavorites(employee.id, "employee")
+            toast({
+              title: "Employee Dismissed",
+              description: "Employee marked as not interested",
+            })
+          } catch (error) {
+            toast({
+              title: "Error",
+              description: "Failed to update employee status",
+              variant: "destructive",
+            })
+          } finally {
+            setEmployeeLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
+          }
+        }
+
+        const isEmployeeInFavorites = (employeeId: string) => {
+          return Array.isArray(favoriteEmployees) && favoriteEmployees.some((emp) => emp.id === employeeId)
+        }
+
         return (
           <div className="space-y-4">
             <p className="text-sm">Encontré {response.search_results.employees.length} empleados relevantes:</p>
-            <EmployeesResultsTable
-              employees={response.search_results.employees}
-              projectId={projectId}
-              showLimit={true}
-              maxResults={5}
-            />
+
+            {/* Lista principal de empleados con altura máxima y scroll */}
+            <div className="max-h-[300px] overflow-auto border rounded-md bg-white dark:bg-slate-800">
+              <EmployeesResultsTable
+                employees={response.search_results.employees}
+                projectId={projectId}
+                showLimit={false}
+              />
+            </div>
+
+            {/* Empleados agrupados por fondo usando el nuevo componente de tarjeta */}
             {response.search_results.employees_by_fund &&
               Object.keys(response.search_results.employees_by_fund).length > 0 && (
                 <div className="mt-4">
                   <h4 className="font-semibold mb-2">Empleados agrupados por fondo:</h4>
                   {Object.entries(response.search_results.employees_by_fund).map(([fund, employees]) => (
-                    <div key={fund} className="mb-4">
-                      <h5 className="font-medium text-sm mb-2">
-                        {fund} ({employees.length} empleados)
-                      </h5>
-                      <EmployeesResultsTable
-                        employees={employees}
-                        projectId={projectId}
-                        showLimit={true}
-                        maxResults={3}
-                      />
-                    </div>
+                    <EmployeeFundCard
+                      key={fund}
+                      fundName={fund}
+                      employees={employees}
+                      onLike={handleEmployeeLike}
+                      onDislike={handleEmployeeDislike}
+                      isEmployeeInFavorites={isEmployeeInFavorites}
+                      loadingStates={employeeLoadingStates}
+                    />
                   ))}
                 </div>
               )}
@@ -354,7 +335,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
           </div>
         </div>
       ) : (
-        <ScrollArea className="flex-1 p-4 sm:p-6" ref={scrollAreaRef}>
+        <ScrollArea className="flex-1 p-4 sm:p-6 overflow-y-auto" ref={scrollAreaRef}>
           <div className="space-y-6">
             {messages.map((msg) => (
               <div
@@ -369,17 +350,19 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 )}
                 <div
                   className={cn(
-                    "max-w-[calc(100%-4rem)]",
+                    "max-w-[calc(100%-4rem)]", // Ancho máximo para mensajes de texto
                     msg.sender === "user" ? "p-3 rounded-xl shadow-sm bg-blue-600 text-white rounded-br-none" : "",
                     msg.sender === "bot"
                       ? "p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700"
                       : "",
+                    // Si el mensaje del bot contiene una tabla, permitir que ocupe más ancho si es necesario,
+                    // pero el scroll estará DENTRO de la tabla.
                     msg.sender === "bot" &&
                       msg.rawApiResponse &&
                       (msg.rawApiResponse.type === "investor_results_normal" ||
                         msg.rawApiResponse.type === "investor_results_deep" ||
                         msg.rawApiResponse.type === "employee_results")
-                      ? "w-full max-w-none"
+                      ? "w-full" // Permitir que el contenedor del mensaje del bot use el ancho disponible
                       : "",
                   )}
                 >
@@ -413,22 +396,9 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 </Avatar>
                 <div className="p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700">
                   <div className="flex items-center space-x-2">
-                    <div className="flex space-x-1">
-                      <div
-                        className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-                        style={{ animationDelay: "0s" }}
-                      />
-                      <div
-                        className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-                        style={{ animationDelay: "0.1s" }}
-                      />
-                      <div
-                        className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      />
-                    </div>
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
                     {loadingMessage && (
-                      <span className="text-sm text-slate-600 dark:text-slate-400 ml-2">{loadingMessage}</span>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">{loadingMessage}</span>
                     )}
                   </div>
                 </div>
