@@ -88,6 +88,7 @@ interface ProjectTemplatesResponse {
 async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
+    credentials: "include", // Add credentials: 'include' to all requests
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
@@ -150,32 +151,40 @@ export const api = {
   },
 
   async getSavedItems(projectId: string, type: "investors" | "employees"): Promise<any[]> {
-    // This will call a new backend endpoint: GET /projects/{projectId}/saved?type={type}
-    return fetchApi(`/projects/${projectId}/saved?type=${type}`)
+    return fetchApi(`/saved/${type}`)
   },
 
   async getUnwantedItems(projectId: string): Promise<any[]> {
-    // This will call a new backend endpoint: GET /projects/{projectId}/unwanted
-    return fetchApi(`/projects/${projectId}/unwanted`)
+    return fetchApi(`/unwanted`)
   },
 
   async removeSentiment(sentimentId: string): Promise<{ message: string }> {
-    // This will call a new backend endpoint: DELETE /sentiments/{sentimentId}
-    return fetchApi(`/sentiments/${sentimentId}`, {
+    return fetchApi(`/sentiment/${sentimentId}`, {
       method: "DELETE",
     })
   },
 
-  // This function sends a message to the main chat orchestrator to trigger the sentiment update tool.
   async updateInvestorSentiment(
     projectId: string,
     entityId: string,
     sentiment: "like" | "dislike",
   ): Promise<ChatResponseType> {
-    const message = `Set sentiment for investor ${entityId} to ${sentiment}`
-    return this.chat({
-      project_id: projectId,
-      message: message,
+    return fetchApi(`/sentiment`, {
+      method: "POST",
+      body: JSON.stringify({
+        entity_id: entityId,
+        sentiment: sentiment,
+      }),
+    })
+  },
+
+  async generateTemplate(investorId: string, platform: string): Promise<OutreachTemplate> {
+    return fetchApi(`/generate/template`, {
+      method: "POST",
+      body: JSON.stringify({
+        investor_id: investorId,
+        platform: platform,
+      }),
     })
   },
 }

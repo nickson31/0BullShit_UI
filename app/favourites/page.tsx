@@ -9,6 +9,8 @@ import EmployeeCard from "@/components/employee-card" // Assuming this component
 import UnwantedItemCard from "@/components/unwanted-item-card"
 import { api } from "@/services/api"
 import { useToast } from "@/components/ui/use-toast"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent } from "@/components/ui/card"
 
 // Mock data types - replace with actual types from your project
 type SavedInvestor = any
@@ -69,6 +71,37 @@ export default function FavouritesPage() {
     setUnwantedItems((prev) => prev.filter((item) => item.id !== sentimentId))
   }
 
+  const renderLoadingSkeletons = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Card key={i} className="animate-pulse">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-6 w-1/2" />
+                <Skeleton className="h-5 w-16" />
+              </div>
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+              <div className="flex justify-between mt-4">
+                <div className="space-x-2">
+                  <Skeleton className="h-8 w-16 inline-block" />
+                  <Skeleton className="h-8 w-16 inline-block" />
+                </div>
+                <Skeleton className="h-8 w-8" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+
   const renderContent = (
     key: "investors" | "employees" | "unwanted",
     data: any[],
@@ -76,7 +109,7 @@ export default function FavouritesPage() {
     cardProps: object = {},
   ) => {
     if (isLoading[key]) {
-      return <div className="text-center p-8">Loading...</div>
+      return renderLoadingSkeletons()
     }
     if (data.length === 0) {
       return <div className="text-center p-8 text-muted-foreground">No items found.</div>

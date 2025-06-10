@@ -4,10 +4,11 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ThumbsUp, ThumbsDown, MoreHorizontal } from "lucide-react"
+import { ThumbsUp, ThumbsDown, MoreHorizontal, Users } from "lucide-react"
 import { motion } from "framer-motion"
 import { api } from "@/services/api"
 import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
 
 interface InvestorCardProps {
   id: string
@@ -46,23 +47,14 @@ export default function InvestorCard({
   const [isDismissed, setIsDismissed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
 
   const handleAction = async (sentiment: "like" | "dislike") => {
     if (isLoading) return
     setIsLoading(true)
 
     try {
-      // const response = await fetch(`/api/projects/${projectId}/sentiment`, {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     entity_id: id,
-      //     sentiment
-      //   })
-      // })
-
-      // if (!response.ok) throw new Error()
-      await api.updateInvestorSentiment(projectId, id, sentiment) // Replaced fetch with api call
+      await api.updateInvestorSentiment(projectId, id, sentiment)
 
       setIsLiked(sentiment === "like")
       setIsDismissed(sentiment === "dislike")
@@ -87,6 +79,10 @@ export default function InvestorCard({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleViewEmployees = () => {
+    router.push(`/employees?company=${encodeURIComponent(company)}`)
   }
 
   return (
@@ -151,9 +147,15 @@ export default function InvestorCard({
                   </Button>
                 </div>
 
-                <Button size="sm" variant="ghost">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
+                <div className="space-x-2">
+                  <Button size="sm" variant="outline" onClick={handleViewEmployees}>
+                    <Users className="h-4 w-4 mr-1" />
+                    Employees
+                  </Button>
+                  <Button size="sm" variant="ghost">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
