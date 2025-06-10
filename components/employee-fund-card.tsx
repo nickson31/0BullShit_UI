@@ -1,13 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronUp, Users } from "lucide-react"
+import { ChevronDown, ChevronUp, Users, Heart, X } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { motion, AnimatePresence } from "framer-motion"
 import type { EmployeeResult } from "@/services/api"
+import { cn } from "@/lib/utils"
 
 interface EmployeeFundCardProps {
   fundName: string
@@ -75,28 +76,33 @@ export default function EmployeeFundCard({
                     </div>
                     <div className="flex gap-1">
                       <Button
-                        variant={isEmployeeInFavorites(employee.id) ? "default" : "outline"}
+                        variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
                           onLike(employee)
                         }}
                         disabled={loadingStates[employee.id]}
-                        className="h-7 w-7 p-0"
+                        className={cn(
+                          "h-7 w-7 p-0 rounded-full hover:bg-pink-100 dark:hover:bg-pink-900",
+                          isEmployeeInFavorites(employee.id) ? "text-pink-500" : "text-slate-500 dark:text-slate-400",
+                        )}
+                        title={isEmployeeInFavorites(employee.id) ? "Unlike Employee" : "Like Employee"}
                       >
-                        <span className="sr-only">Like</span>👍
+                        <Heart className={cn("h-4 w-4", isEmployeeInFavorites(employee.id) ? "fill-pink-500" : "")} />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
                           onDislike(employee)
                         }}
-                        disabled={loadingStates[employee.id]}
-                        className="h-7 w-7 p-0"
+                        disabled={loadingStates[employee.id] || isEmployeeInFavorites(employee.id)}
+                        className="h-7 w-7 p-0 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                        title="Dislike Employee"
                       >
-                        <span className="sr-only">Dislike</span>👎
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>

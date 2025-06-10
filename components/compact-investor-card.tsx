@@ -5,7 +5,7 @@ import type React from "react"
 import type { InvestorResult } from "@/services/api"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ThumbsUp, ThumbsDown, ExternalLink } from "lucide-react"
+import { Heart, X, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
@@ -81,24 +81,27 @@ export default function CompactInvestorCard({
       </CardContent>
       <CardFooter className="px-4 pb-3 pt-0 flex justify-end space-x-2">
         <Button
-          variant={isFavorite ? "default" : "outline"}
+          variant="ghost"
           size="sm"
           onClick={handleLike}
           disabled={isLoading}
-          className={cn("h-7 w-7 p-0", isFavorite && "bg-green-500 hover:bg-green-600 border-green-500")}
-          title="Like Investor"
+          className={cn(
+            "h-7 w-7 p-0 rounded-full hover:bg-pink-100 dark:hover:bg-pink-900",
+            isFavorite ? "text-pink-500" : "text-slate-500 dark:text-slate-400",
+          )}
+          title={isFavorite ? "Unlike Investor" : "Like Investor"}
         >
-          <ThumbsUp className="h-3.5 w-3.5" />
+          <Heart className={cn("h-4 w-4", isFavorite ? "fill-pink-500" : "")} />
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={handleDislike}
-          disabled={isLoading || isFavorite} // Disable dislike if liked or loading
-          className="h-7 w-7 p-0"
+          disabled={isLoading || isFavorite} // Keep disabled if liked or loading
+          className="h-7 w-7 p-0 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
           title="Dislike Investor"
         >
-          <ThumbsDown className="h-3.5 w-3.5" />
+          <X className="h-4 w-4" />
         </Button>
       </CardFooter>
     </Card>

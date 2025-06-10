@@ -89,8 +89,14 @@ export default function FavouritesPage() {
 
       <Tabs defaultValue="investors" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="investors">Saved Investors ({favoriteInvestors.length})</TabsTrigger>
-          <TabsTrigger value="employees">Saved Employees ({favoriteEmployees.length})</TabsTrigger>
+          <TabsTrigger value="investors" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Saved Investors ({favoriteInvestors.length})
+          </TabsTrigger>
+          <TabsTrigger value="employees" className="flex items-center gap-2">
+            <UserCircle2 className="h-4 w-4" />
+            Saved Employees ({favoriteEmployees.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="investors">

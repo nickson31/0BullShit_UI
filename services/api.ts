@@ -56,6 +56,20 @@ export type ChatResponseType =
   | { type: "text_response"; content: string }
   | { type: "error"; content: string }
 
+// Add after existing imports
+export interface GenerateTemplateRequest {
+  target_entity_id: string
+  target_entity_type: "investor" | "employee"
+  platform: "email" | "linkedin"
+  instructions: string
+  // Add project_id if your backend needs it for context
+  // project_id?: string;
+}
+
+export interface GenerateTemplateResponse {
+  template: string
+}
+
 // Helper function to handle API requests with better error handling
 async function fetchApi(endpoint: string, options: RequestInit = {}) {
   try {
@@ -146,5 +160,34 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ entity_id: entityId, entity_type: "employee", sentiment }),
     })
+  },
+
+  // Add this new method to the api object
+  async generateTemplate(data: GenerateTemplateRequest): Promise<GenerateTemplateResponse> {
+    // Placeholder: In a real scenario, this would call your backend.
+    // For now, we'll simulate a response.
+    console.log("Generating template with data:", data)
+    await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network delay
+
+    let simulatedTemplate = ""
+    if (data.platform === "email") {
+      simulatedTemplate = `Subject: Introduction and Potential Synergies - [Your Startup] & [Target Name]\n\nDear [Target Contact Person],\n\nMy name is [Your Name], and I'm the founder of [Your Startup], a company revolutionizing [Your Industry] by [Your Unique Value Proposition].\n\nI came across your profile/work at [Target Name/Company] and was particularly impressed by [Specific Compliment/Connection Point related to instructions: ${data.instructions}].\n\nGiven your focus on [Target's Focus Area], I believe there could be a strong alignment with what we're building at [Your Startup]. We are currently seeking [Funding Stage/Partnership Type] and would be thrilled to explore potential synergies.\n\nWould you be open to a brief 15-minute call next week to discuss this further?\n\nBest regards,\n[Your Name]\n[Your Title]\n[Your Startup Website]`
+    } else {
+      // LinkedIn
+      simulatedTemplate = `Hi [Target Contact Person],\n\nI'm [Your Name], founder of [Your Startup] ([Your Startup Website]), where we're [Your Unique Value Proposition in brief].\n\nI was impressed by your work in [Specific Compliment/Connection Point based on instructions: ${data.instructions}] at [Target Name/Company] and see a potential overlap with our mission.\n\nWe're looking for [Funding Stage/Partnership Type] and I believe a conversation could be mutually beneficial. Are you open to connecting and a brief chat?\n\nThanks,\n[Your Name]`
+    }
+
+    // Replace placeholders based on entity type (this is a simplified example)
+    // In a real backend, you'd fetch entity details using target_entity_id
+    const entityName = data.target_entity_type === "investor" ? "Investor X" : "Employee Y"
+    simulatedTemplate = simulatedTemplate.replace(/\[Target Name\]/g, entityName)
+    simulatedTemplate = simulatedTemplate.replace(/\[Target Contact Person\]/g, "Selected Contact")
+
+    return { template: simulatedTemplate }
+    // Actual backend call would be:
+    // return fetchApi("/generate/template", { // Ensure this endpoint exists on your backend
+    //   method: "POST",
+    //   body: JSON.stringify(data),
+    // });
   },
 }

@@ -14,6 +14,7 @@ import DeepAnalysisCard from "@/components/deep-analysis-card"
 import { useToast } from "@/components/ui/use-toast"
 import { useApp } from "@/contexts/AppContext"
 import { api, type ChatResponseType, type EmployeeResult, type InvestorResult } from "@/services/api"
+import { Progress } from "@/components/ui/progress"
 
 interface Message {
   id: string
@@ -32,24 +33,26 @@ const suggestionChipsData = [
 ]
 
 const loadingMessages = {
-  deep: [
-    "Iniciando análisis profundo: esto puede tardar un poco más...",
-    "Revisando portafolios, últimas inversiones y exits de cada fondo...",
-    "Nuestro LLM está leyendo entre líneas para detectar afinidad real...",
-    "Generando un análisis cualitativo para cada inversor potencial...",
-    "Compilando los resultados. La espera valdrá la pena.",
+  investor_search: [
+    "Analyzing 50,000+ investment funds...",
+    "Applying ML compatibility algorithms...",
+    "Calculating market timing scores...",
+    "Generating insights...",
   ],
-  normal: [
-    "Accediendo a nuestra base de datos de +50,000 VCs y Business Angels...",
-    "Filtrando por tesis de inversión y startups similares a la tuya...",
-    "Cruzando datos para encontrar el 'perfect match'...",
-    "Preparando la lista final. ¡Casi listo!",
+  deep_investor_search: [
+    "Initiating deep dive analysis...",
+    "Analyzing 50,000+ investment funds & portfolio companies...",
+    "Applying advanced ML compatibility algorithms...",
+    "Cross-referencing thesis, past investments, and exit strategies...",
+    "Calculating market timing and unique fit scores...",
+    "Generating comprehensive insights and strategic recommendations...",
   ],
-  employees: [
-    "Escaneando perfiles de LinkedIn para los fondos seleccionados...",
-    "Identificando empleados clave...",
-    "Analizando conexiones profesionales y roles...",
-    "Preparando la lista de contactos...",
+  employee_search: [
+    "Scanning investment firm networks...",
+    "Filtering high-quality contacts (score >44)...",
+    "Mapping decision makers and key personnel...",
+    "Cross-referencing with LinkedIn profiles and roles...",
+    "Organizing contacts by fund...",
   ],
 }
 
@@ -75,6 +78,9 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
   const [actionLoadingStates, setActionLoadingStates] = useState<Record<string, boolean>>({}) // For like/dislike on cards
+  const [activeLoadingProcess, setActiveLoadingProcess] = useState<keyof typeof loadingMessages | null>(null)
+  const [progressValue, setProgressValue] = useState(0)
+  const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const [showAllInvestors, setShowAllInvestors] = useState<Record<string, boolean>>({}) // messageId: boolean
 
@@ -87,24 +93,45 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     }
   }, [messages])
 
-  const simulateLoadingMessages = (type: "deep" | "normal" | "employees") => {
-    const currentLoadingMessages = loadingMessages[type]
-    const duration = type === "deep" ? 10000 : type === "employees" ? 6500 : 5000
-    const interval = duration / currentLoadingMessages.length
+  const simulateLoadingMessages = useCallback((type: keyof typeof loadingMessages) => {
+    if (loadingIntervalRef.current) {
+      clearInterval(loadingIntervalRef.current)
+    }
 
+    const currentProcessMessages = loadingMessages[type]
+    let duration = 5000 // Default for normal investor search
+    if (type === "deep_investor_search") {
+      duration = 10000 // 8-12s range, average 10s
+    } else if (type === "employee_search") {
+      duration = 6500 // 5-8s range, average 6.5s
+    }
+
+    const intervalTime = duration / currentProcessMessages.length
     let currentIndex = 0
-    setLoadingMessage(currentLoadingMessages[0])
 
-    const loadingIntervalId = setInterval(() => {
+    setActiveLoadingProcess(type)
+    setLoadingMessage(currentProcessMessages[0])
+    setProgressValue(0)
+
+    loadingIntervalRef.current = setInterval(() => {
       currentIndex++
-      if (currentIndex < currentLoadingMessages.length) {
-        setLoadingMessage(currentLoadingMessages[currentIndex])
+      if (currentIndex < currentProcessMessages.length) {
+        setLoadingMessage(currentProcessMessages[currentIndex])
+        setProgressValue((currentIndex / currentProcessMessages.length) * 100)
       } else {
-        clearInterval(loadingIntervalId)
+        setProgressValue(100)
+        if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current)
+        // Keep the last message and 100% progress until results load or new process starts
       }
-    }, interval)
-    return () => clearInterval(loadingIntervalId)
-  }
+    }, intervalTime)
+
+    return () => {
+      if (loadingIntervalRef.current) {
+        clearInterval(loadingIntervalRef.current)
+        loadingIntervalRef.current = null
+      }
+    }
+  }, [])
 
   const handleSendMessage = useCallback(
     async (text?: string, relatedInvestors?: InvestorResult[]) => {
@@ -122,29 +149,40 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         // Only clear input if it's a direct user message, not programmatic
         setInputValue("")
       }
-      setIsLoading(true)
 
-      let loadingType: "deep" | "normal" | "employees" = "normal"
-      if (
-        messageText.toLowerCase().includes("employee") ||
-        messageText.toLowerCase().includes("empleado") ||
-        relatedInvestors
-      ) {
-        loadingType = "employees"
+      setIsLoading(true) // General loading flag
+      setLoadingMessage("") // Clear previous specific message
+      setProgressValue(0) // Reset progress
+      setActiveLoadingProcess(null) // Reset specific loading process
+
+      const lowerCaseMessage = messageText.toLowerCase()
+      let anticipatedProcess: keyof typeof loadingMessages | null = null
+
+      if (lowerCaseMessage.includes("employee") || lowerCaseMessage.includes("empleado") || relatedInvestors) {
+        anticipatedProcess = "employee_search"
       } else if (
         isDeepResearch ||
-        messageText.toLowerCase().includes("deep") ||
-        messageText.toLowerCase().includes("análisis profundo")
+        lowerCaseMessage.includes("deep research") ||
+        lowerCaseMessage.includes("análisis profundo")
       ) {
-        loadingType = "deep"
+        anticipatedProcess = "deep_investor_search"
+      } else if (
+        lowerCaseMessage.includes("investor") ||
+        lowerCaseMessage.includes("fund") ||
+        lowerCaseMessage.includes("vc") ||
+        lowerCaseMessage.includes("inversor") ||
+        lowerCaseMessage.includes("fondo")
+      ) {
+        anticipatedProcess = "investor_search"
       }
 
-      const clearLoadingInterval = simulateLoadingMessages(loadingType)
+      let clearLoadingProcessInterval: (() => void) | null = null
+      if (anticipatedProcess) {
+        clearLoadingProcessInterval = simulateLoadingMessages(anticipatedProcess)
+      }
 
       try {
         const apiResponse = await api.chat({ message: messageText })
-        clearLoadingInterval()
-        setLoadingMessage("")
 
         if (apiResponse.type === "investor_results_normal") {
           setLastInvestorResults(apiResponse.search_results.results)
@@ -168,8 +206,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         }
         setMessages((prev) => [...prev, botMessage])
       } catch (error) {
-        clearLoadingInterval()
-        setLoadingMessage("")
         const errorResponseMessage: Message = {
           id: (Date.now() + 1).toString(),
           sender: "bot",
@@ -183,10 +219,25 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
           variant: "destructive",
         })
       } finally {
+        if (clearLoadingProcessInterval) {
+          clearLoadingProcessInterval()
+        }
+        setActiveLoadingProcess(null) // Ensure specific loading stops
+        setLoadingMessage("")
+        setProgressValue(0)
         setIsLoading(false)
       }
     },
-    [inputValue, isLoading, isDeepResearch, toast, setLastInvestorResults, setLastEmployeeResults, setLastDeepAnalysis],
+    [
+      inputValue,
+      isLoading,
+      isDeepResearch,
+      toast,
+      setLastInvestorResults,
+      setLastEmployeeResults,
+      setLastDeepAnalysis,
+      simulateLoadingMessages,
+    ],
   )
 
   const handleInvestorLikeDislike = useCallback(
@@ -447,18 +498,26 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
               </div>
             ))}
             {isLoading && (
-              <div className="flex items-start gap-3 justify-start">
+              <div className="flex items-start gap-3 justify-start w-full">
                 <Avatar className="h-8 w-8 border border-slate-200 dark:border-slate-700 flex-shrink-0">
                   <AvatarImage src="/placeholder.svg?width=32&height=32" alt="0BullShit" />
                   <AvatarFallback>0B</AvatarFallback>
                 </Avatar>
-                <div className="p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center space-x-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                    {loadingMessage && (
-                      <span className="text-sm text-slate-600 dark:text-slate-400">{loadingMessage}</span>
-                    )}
-                  </div>
+                <div className="p-3 rounded-xl shadow-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700 w-full max-w-xl">
+                  {activeLoadingProcess && loadingMessage ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                        <span className="text-sm text-slate-600 dark:text-slate-400">{loadingMessage}</span>
+                      </div>
+                      <Progress value={progressValue} className="h-1.5" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                      <span className="text-sm text-slate-600 dark:text-slate-400">Thinking...</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
