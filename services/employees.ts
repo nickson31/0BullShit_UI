@@ -3,16 +3,16 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://zerobs-back
 export const employeeService = {
   async getAll(): Promise<any[]> {
     try {
-      console.log("Fetching all employees using search with empty query")
+      console.log("Fetching all employees using search with generic query")
 
-      // Use search endpoint with empty query to get all employees
+      // Use search endpoint with a generic query to get employees
       const response = await fetch(`${API_BASE_URL}/search/employees`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ query: "" }),
+        body: JSON.stringify({ query: "*" }), // Use "*" or "all" as a generic search term
       })
 
       console.log("Response status:", response.status)
@@ -47,13 +47,16 @@ export const employeeService = {
     try {
       console.log("Searching employees with query:", query)
 
+      // If query is empty, use a generic search term
+      const searchQuery = query.trim() || "*"
+
       const response = await fetch(`${API_BASE_URL}/search/employees`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query: searchQuery }),
       })
 
       if (!response.ok) {
