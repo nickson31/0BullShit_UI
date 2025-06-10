@@ -19,12 +19,16 @@ import {
 } from "@/components/ui/dialog"
 import { FileText, Users, UserCircle2, Sparkles, Loader2, Copy, Check } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { useSearchParams, useRouter } from "next/navigation" // Added useRouter
 
 type SelectedEntityType = (InvestorResult & { type: "investor" }) | (EmployeeResult & { type: "employee" })
 
 export default function TemplatesPage() {
+  // Ensured default export
   const { favoriteInvestors, favoriteEmployees, loadFavorites } = useApp()
   const { toast } = useToast()
+  const router = useRouter() // Added router
+  const searchParams = useSearchParams()
 
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntityType | null>(null)
   const [platform, setPlatform] = useState<"email" | "linkedin">("email")
@@ -33,23 +37,56 @@ export default function TemplatesPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showTemplateModal, setShowTemplateModal] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [isLoadingInitialEntity, setIsLoadingInitialEntity] = useState(true)
 
   useEffect(() => {
-    loadFavorites()
-  }, [loadFavorites])
+    loadFavorites().then(() => {
+      const entityId = searchParams.get("entityId")
+      const entityType = searchParams.get("entityType") as "investor" | "employee" | null
+
+      if (entityId && entityType) {
+        let foundEntity: SelectedEntityType | undefined | null = null
+        if (entityType === "investor") {
+          foundEntity = favoriteInvestors.find((inv) => inv.id === entityId) as
+            | (InvestorResult & { type: "investor" })
+            | undefined
+          if (foundEntity) foundEntity.type = "investor"
+        } else if (entityType === "employee") {
+          foundEntity = favoriteEmployees.find((emp) => emp.id === entityId) as
+            | (EmployeeResult & { type: "employee" })
+            | undefined
+          if (foundEntity) foundEntity.type = "employee"
+        }
+
+        if (foundEntity) {
+          setSelectedEntity(foundEntity)
+        } else {
+          toast({
+            title: "Entity not found",
+            description: "The selected entity could not be found in your favorites.",
+            variant: "destructive",
+          })
+        }
+      }
+      setIsLoadingInitialEntity(false)
+    })
+  }, [loadFavorites, searchParams, favoriteInvestors, favoriteEmployees, toast])
 
   const handleGenerateClick = (entity: SelectedEntityType) => {
     setSelectedEntity(entity)
-    setInstructions("") // Reset instructions
-    setPlatform("email") // Reset platform
-    setGeneratedTemplate("") // Clear previous template
+    setInstructions("")
+    setPlatform("email")
+    setGeneratedTemplate("")
+    // Clear query params if user selects a new entity from the list
+    router.replace("/templates", undefined)
   }
 
   const handleGenerateTemplate = async () => {
-    if (!selectedEntity || !instructions.trim()) {
+    if (!selectedEntity) {
+      // Instructions are now optional
       toast({
-        title: "Missing Information",
-        description: "Please select an entity and provide instructions.",
+        title: "Missing Entity",
+        description: "Please select an entity.",
         variant: "destructive",
       })
       return
@@ -61,7 +98,7 @@ export default function TemplatesPage() {
         target_entity_id: selectedEntity.id,
         target_entity_type: selectedEntity.type,
         platform,
-        instructions,
+        instructions: instructions.trim(), // Send trimmed instructions
       }
       const response = await api.generateTemplate(requestData)
       setGeneratedTemplate(response.template)
@@ -85,7 +122,7 @@ export default function TemplatesPage() {
         setTimeout(() => setCopied(false), 2000)
         toast({ title: "Template Copied!" })
       })
-      .catch((err) => {
+      .catch((_err) => {
         toast({ title: "Copy Failed", description: "Could not copy template to clipboard.", variant: "destructive" })
       })
   }
@@ -116,6 +153,15 @@ export default function TemplatesPage() {
     )
   }
 
+  if (isLoadingInitialEntity && searchParams.get("entityId")) {
+    return (
+      <div className="container py-6 mx-auto flex justify-center items-center h-[calc(100vh-200px)]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Loading selected entity...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="container py-6 mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -131,7 +177,7 @@ export default function TemplatesPage() {
                 ? (selectedEntity as InvestorResult).Company_Name
                 : (selectedEntity as EmployeeResult).fullName}
             </CardTitle>
-            <CardDescription>Set the platform and provide specific instructions for the AI.</CardDescription>
+            <CardDescription>Set the platform and provide optional specific instructions for the AI.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -147,7 +193,7 @@ export default function TemplatesPage() {
               </Select>
             </div>
             <div>
-              <Label htmlFor="instructions">Instructions / Key Points</Label>
+              <Label htmlFor="instructions">Instructions / Key Points (Optional)</Label>
               <Textarea
                 id="instructions"
                 value={instructions}
@@ -158,7 +204,7 @@ export default function TemplatesPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={handleGenerateTemplate} disabled={isGenerating || !instructions.trim()}>
+            <Button onClick={handleGenerateTemplate} disabled={isGenerating}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               Generate
             </Button>
@@ -193,7 +239,6 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      {/* Dialog for showing generated template */}
       <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>

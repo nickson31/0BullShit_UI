@@ -11,26 +11,63 @@ export default function InvestorsPage() {
   const { lastInvestorResults, favoriteInvestors, addToFavorites, removeFromFavorites } = useApp()
   const { toast } = useToast()
 
-  const handleInvestorLikeDislike = useCallback(
-    async (investorId: string, action: "like" | "dislike") => {
-      try {
-        await api.updateInvestorSentiment(investorId, action)
-        const investor = lastInvestorResults.find((inv) => inv.id === investorId)
+  const handleInvestorToggleFavorite = useCallback(
+    async (investorId: string) => {
+      // setActionLoadingStates((prev) => ({ ...prev, [investorId]: true })) // If you add loading states here
+      const investor =
+        lastInvestorResults.find((inv) => inv.id === investorId) ||
+        favoriteInvestors.find((inv) => inv.id === investorId)
 
-        if (investor) {
-          if (action === "like") {
-            addToFavorites(investor, "investor")
-            toast({ title: "Investor Liked", description: `${investor.Company_Name} added to favorites.` })
-          } else {
-            removeFromFavorites(investorId, "investor")
-            toast({ title: "Investor Disliked", description: `${investor.Company_Name} removed from favorites.` })
-          }
+      if (!investor) {
+        toast({ title: "Error", description: "Investor not found.", variant: "destructive" })
+        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        return
+      }
+
+      const currentIsFavorite = favoriteInvestors.some((fav) => fav.id === investorId)
+
+      try {
+        if (currentIsFavorite) {
+          await api.updateInvestorSentiment(investorId, "dislike")
+          removeFromFavorites(investorId, "investor")
+          toast({ title: "Investor Unliked", description: `${investor.Company_Name} removed from favorites.` })
+        } else {
+          await api.updateInvestorSentiment(investorId, "like")
+          addToFavorites(investor, "investor")
+          toast({ title: "Investor Liked", description: `${investor.Company_Name} added to favorites.` })
         }
       } catch (error) {
         toast({ title: "Error", description: "Failed to update investor status.", variant: "destructive" })
+      } finally {
+        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
       }
     },
-    [addToFavorites, removeFromFavorites, toast, lastInvestorResults],
+    [addToFavorites, removeFromFavorites, toast, lastInvestorResults, favoriteInvestors],
+  )
+
+  const handleInvestorDislikeAction = useCallback(
+    async (investorId: string) => {
+      // setActionLoadingStates((prev) => ({ ...prev, [investorId]: true }))
+      const investor =
+        lastInvestorResults.find((inv) => inv.id === investorId) ||
+        favoriteInvestors.find((inv) => inv.id === investorId)
+
+      if (!investor) {
+        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        return
+      }
+
+      try {
+        await api.updateInvestorSentiment(investorId, "dislike")
+        removeFromFavorites(investorId, "investor")
+        toast({ title: "Investor Disliked", description: `${investor.Company_Name} marked as disliked.` })
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to update investor status.", variant: "destructive" })
+      } finally {
+        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+      }
+    },
+    [removeFromFavorites, toast, lastInvestorResults, favoriteInvestors],
   )
 
   return (
@@ -47,10 +84,10 @@ export default function InvestorsPage() {
             <CompactInvestorCard
               key={investor.id}
               investor={investor}
-              onLike={(id) => handleInvestorLikeDislike(id, "like")}
-              onDislike={(id) => handleInvestorLikeDislike(id, "dislike")}
+              onToggleFavorite={handleInvestorToggleFavorite} // Updated
+              onDislikeAction={handleInvestorDislikeAction} // Updated
               isFavorite={favoriteInvestors.some((fav) => fav.id === investor.id)}
-              isLoading={false} // Loading state not tracked on this page for simplicity
+              isLoading={false} // Add loading state if desired for this page
             />
           ))}
         </div>

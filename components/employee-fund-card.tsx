@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils"
 interface EmployeeFundCardProps {
   fundName: string
   employees: EmployeeResult[]
-  onLike: (employee: EmployeeResult) => void
-  onDislike: (employee: EmployeeResult) => void
+  onToggleFavorite: (employee: EmployeeResult) => void // New prop
+  onDislikeAction: (employee: EmployeeResult) => void // New prop
   isEmployeeInFavorites: (id: string) => boolean
   loadingStates: Record<string, boolean>
 }
@@ -22,8 +22,8 @@ interface EmployeeFundCardProps {
 export default function EmployeeFundCard({
   fundName,
   employees,
-  onLike,
-  onDislike,
+  onToggleFavorite,
+  onDislikeAction,
   isEmployeeInFavorites,
   loadingStates,
 }: EmployeeFundCardProps) {
@@ -80,7 +80,7 @@ export default function EmployeeFundCard({
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
-                          onLike(employee)
+                          onToggleFavorite(employee) // Updated
                         }}
                         disabled={loadingStates[employee.id]}
                         className={cn(
@@ -96,9 +96,9 @@ export default function EmployeeFundCard({
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
-                          onDislike(employee)
+                          onDislikeAction(employee) // Updated
                         }}
-                        disabled={loadingStates[employee.id] || isEmployeeInFavorites(employee.id)}
+                        disabled={loadingStates[employee.id]} // Removed '|| isEmployeeInFavorites(employee.id)'
                         className="h-7 w-7 p-0 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                         title="Dislike Employee"
                       >

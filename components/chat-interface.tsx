@@ -37,9 +37,10 @@ const loadingMessages = {
     "Analyzing 50,000+ investment funds...",
     "Applying ML compatibility algorithms...",
     "Calculating market timing scores...",
-    "Generating insights...",
+    "Generating strategic insights...", // Updated
   ],
   deep_investor_search: [
+    // Keep existing deep search messages
     "Initiating deep dive analysis...",
     "Analyzing 50,000+ investment funds & portfolio companies...",
     "Applying advanced ML compatibility algorithms...",
@@ -48,11 +49,11 @@ const loadingMessages = {
     "Generating comprehensive insights and strategic recommendations...",
   ],
   employee_search: [
+    // Updated
     "Scanning investment firm networks...",
     "Filtering high-quality contacts (score >44)...",
-    "Mapping decision makers and key personnel...",
-    "Cross-referencing with LinkedIn profiles and roles...",
-    "Organizing contacts by fund...",
+    "Mapping decision makers...",
+    "Organizing by fund...",
   ],
 }
 
@@ -81,6 +82,8 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   const [activeLoadingProcess, setActiveLoadingProcess] = useState<keyof typeof loadingMessages | null>(null)
   const [progressValue, setProgressValue] = useState(0)
   const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const progressAnimationRef = useRef<number | null>(null)
+  const progressStartTimeRef = useRef<number | null>(null)
 
   const [showAllInvestors, setShowAllInvestors] = useState<Record<string, boolean>>({}) // messageId: boolean
 
@@ -97,41 +100,67 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     if (loadingIntervalRef.current) {
       clearInterval(loadingIntervalRef.current)
     }
-
-    const currentProcessMessages = loadingMessages[type]
-    let duration = 5000 // Default for normal investor search
-    if (type === "deep_investor_search") {
-      duration = 10000 // 8-12s range, average 10s
-    } else if (type === "employee_search") {
-      duration = 6500 // 5-8s range, average 6.5s
+    if (progressAnimationRef.current) {
+      cancelAnimationFrame(progressAnimationRef.current)
     }
 
-    const intervalTime = duration / currentProcessMessages.length
-    let currentIndex = 0
+    const currentProcessMessages = loadingMessages[type]
+    let baseDuration = 5000 // Default for normal investor search
+    if (type === "deep_investor_search") {
+      baseDuration = 10000
+    } else if (type === "employee_search") {
+      baseDuration = 6500
+    }
+
+    // Add a bit of variability to the duration, e.g., +/- 1 second for deep, +/- 0.5s for others
+    const durationVariance = type === "deep_investor_search" ? Math.random() * 2000 - 1000 : Math.random() * 1000 - 500
+    const duration = Math.max(3000, baseDuration + durationVariance) // Ensure minimum duration
+
+    const messageIntervalTime = duration / currentProcessMessages.length
+    let currentMessageIndex = 0
 
     setActiveLoadingProcess(type)
     setLoadingMessage(currentProcessMessages[0])
     setProgressValue(0)
+    progressStartTimeRef.current = performance.now()
+
+    const animateProgress = (timestamp: number) => {
+      if (!progressStartTimeRef.current) progressStartTimeRef.current = timestamp
+      const elapsed = timestamp - progressStartTimeRef.current
+      const calculatedProgress = Math.min((elapsed / duration) * 100, 100)
+      setProgressValue(calculatedProgress)
+
+      if (elapsed < duration) {
+        progressAnimationRef.current = requestAnimationFrame(animateProgress)
+      } else {
+        setProgressValue(100) // Ensure it hits 100
+      }
+    }
+
+    progressAnimationRef.current = requestAnimationFrame(animateProgress)
 
     loadingIntervalRef.current = setInterval(() => {
-      currentIndex++
-      if (currentIndex < currentProcessMessages.length) {
-        setLoadingMessage(currentProcessMessages[currentIndex])
-        setProgressValue((currentIndex / currentProcessMessages.length) * 100)
+      currentMessageIndex++
+      if (currentMessageIndex < currentProcessMessages.length) {
+        setLoadingMessage(currentProcessMessages[currentMessageIndex])
       } else {
-        setProgressValue(100)
         if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current)
-        // Keep the last message and 100% progress until results load or new process starts
+        // Message changing stops, progress animation continues to 100%
       }
-    }, intervalTime)
+    }, messageIntervalTime)
 
     return () => {
       if (loadingIntervalRef.current) {
         clearInterval(loadingIntervalRef.current)
         loadingIntervalRef.current = null
       }
+      if (progressAnimationRef.current) {
+        cancelAnimationFrame(progressAnimationRef.current)
+        progressAnimationRef.current = null
+      }
+      progressStartTimeRef.current = null
     }
-  }, [])
+  }, []) // Removed simulateLoadingMessages from its own dependency array
 
   const handleSendMessage = useCallback(
     async (text?: string, relatedInvestors?: InvestorResult[]) => {
@@ -220,7 +249,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         })
       } finally {
         if (clearLoadingProcessInterval) {
-          clearLoadingProcessInterval()
+          clearLoadingProcessInterval() // This now also clears the animation frame
         }
         setActiveLoadingProcess(null) // Ensure specific loading stops
         setLoadingMessage("")
@@ -240,23 +269,30 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     ],
   )
 
-  const handleInvestorLikeDislike = useCallback(
-    async (investorId: string, action: "like" | "dislike") => {
+  const handleInvestorToggleFavorite = useCallback(
+    async (investorId: string) => {
       setActionLoadingStates((prev) => ({ ...prev, [investorId]: true }))
-      try {
-        await api.updateInvestorSentiment(investorId, action)
-        const investor =
-          lastInvestorResults.find((inv) => inv.id === investorId) ||
-          favoriteInvestors.find((inv) => inv.id === investorId)
+      const investor =
+        lastInvestorResults.find((inv) => inv.id === investorId) ||
+        favoriteInvestors.find((inv) => inv.id === investorId)
 
-        if (investor) {
-          if (action === "like") {
-            addToFavorites(investor, "investor")
-            toast({ title: "Investor Liked", description: `${investor.Company_Name} added to favorites.` })
-          } else {
-            removeFromFavorites(investorId, "investor")
-            toast({ title: "Investor Disliked", description: `${investor.Company_Name} removed from favorites.` })
-          }
+      if (!investor) {
+        toast({ title: "Error", description: "Investor not found.", variant: "destructive" })
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        return
+      }
+
+      const currentIsFavorite = favoriteInvestors.some((fav) => fav.id === investorId)
+
+      try {
+        if (currentIsFavorite) {
+          await api.updateInvestorSentiment(investorId, "dislike") // Or a neutral sentiment
+          removeFromFavorites(investorId, "investor")
+          toast({ title: "Investor Unliked", description: `${investor.Company_Name} removed from favorites.` })
+        } else {
+          await api.updateInvestorSentiment(investorId, "like")
+          addToFavorites(investor, "investor")
+          toast({ title: "Investor Liked", description: `${investor.Company_Name} added to favorites.` })
         }
       } catch (error) {
         toast({ title: "Error", description: "Failed to update investor status.", variant: "destructive" })
@@ -267,17 +303,45 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     [addToFavorites, removeFromFavorites, toast, lastInvestorResults, favoriteInvestors],
   )
 
-  const handleEmployeeLikeDislike = useCallback(
-    async (employee: EmployeeResult, action: "like" | "dislike") => {
-      setActionLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+  const handleInvestorDislikeAction = useCallback(
+    async (investorId: string) => {
+      setActionLoadingStates((prev) => ({ ...prev, [investorId]: true }))
+      const investor =
+        lastInvestorResults.find((inv) => inv.id === investorId) ||
+        favoriteInvestors.find((inv) => inv.id === investorId)
+
+      if (!investor) {
+        // It might have been removed by a toggle already, so don't show error if not found
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        return
+      }
+
       try {
-        await api.updateEmployeeSentiment(employee.id, action)
-        if (action === "like") {
+        await api.updateInvestorSentiment(investorId, "dislike")
+        removeFromFavorites(investorId, "investor")
+        toast({ title: "Investor Disliked", description: `${investor.Company_Name} marked as disliked.` })
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to update investor status.", variant: "destructive" })
+      } finally {
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+      }
+    },
+    [removeFromFavorites, toast, lastInvestorResults, favoriteInvestors],
+  )
+
+  const handleEmployeeToggleFavorite = useCallback(
+    async (employee: EmployeeResult) => {
+      setActionLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+      const currentIsFavorite = favoriteEmployees.some((fav) => fav.id === employee.id)
+      try {
+        if (currentIsFavorite) {
+          await api.updateEmployeeSentiment(employee.id, "dislike") // Or neutral
+          removeFromFavorites(employee.id, "employee")
+          toast({ title: "Employee Unliked", description: `${employee.fullName} removed from favorites.` })
+        } else {
+          await api.updateEmployeeSentiment(employee.id, "like")
           addToFavorites(employee, "employee")
           toast({ title: "Employee Liked", description: `${employee.fullName} added to favorites.` })
-        } else {
-          removeFromFavorites(employee.id, "employee")
-          toast({ title: "Employee Disliked", description: `${employee.fullName} removed from favorites.` })
         }
       } catch (error) {
         toast({ title: "Error", description: "Failed to update employee status.", variant: "destructive" })
@@ -285,7 +349,23 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         setActionLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
       }
     },
-    [addToFavorites, removeFromFavorites, toast],
+    [addToFavorites, removeFromFavorites, toast, favoriteEmployees],
+  )
+
+  const handleEmployeeDislikeAction = useCallback(
+    async (employee: EmployeeResult) => {
+      setActionLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+      try {
+        await api.updateEmployeeSentiment(employee.id, "dislike")
+        removeFromFavorites(employee.id, "employee")
+        toast({ title: "Employee Disliked", description: `${employee.fullName} marked as disliked.` })
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to update employee status.", variant: "destructive" })
+      } finally {
+        setActionLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
+      }
+    },
+    [removeFromFavorites, toast],
   )
 
   const handleFindEmployeesForFunds = (investors: InvestorResult[]) => {
@@ -325,8 +405,8 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 <CompactInvestorCard
                   key={investor.id}
                   investor={investor}
-                  onLike={(id) => handleInvestorLikeDislike(id, "like")}
-                  onDislike={(id) => handleInvestorLikeDislike(id, "dislike")}
+                  onToggleFavorite={handleInvestorToggleFavorite} // Updated
+                  onDislikeAction={handleInvestorDislikeAction} // Updated
                   isFavorite={favoriteInvestors.some((fav) => fav.id === investor.id)}
                   isLoading={actionLoadingStates[investor.id] || false}
                 />
@@ -376,8 +456,8 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                       key={fundName}
                       fundName={fundName}
                       employees={fundEmployees}
-                      onLike={(emp) => handleEmployeeLikeDislike(emp, "like")}
-                      onDislike={(emp) => handleEmployeeLikeDislike(emp, "dislike")}
+                      onToggleFavorite={handleEmployeeToggleFavorite} // Updated
+                      onDislikeAction={handleEmployeeDislikeAction} // Updated
                       isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
                       loadingStates={actionLoadingStates}
                     />
@@ -400,8 +480,8 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                         key={fundName}
                         fundName={fundName}
                         employees={fundEmployees}
-                        onLike={(emp) => handleEmployeeLikeDislike(emp, "like")}
-                        onDislike={(emp) => handleEmployeeLikeDislike(emp, "dislike")}
+                        onToggleFavorite={handleEmployeeToggleFavorite} // Updated
+                        onDislikeAction={handleEmployeeDislikeAction} // Updated
                         isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
                         loadingStates={actionLoadingStates}
                       />
@@ -492,7 +572,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 {msg.sender === "user" && (
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarImage src="/placeholder.svg?width=32&height=32" alt={userName} />
-                    <AvatarFallback>{userName.substring(0, 1).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback>{userName.substring(0, 1).toUpperCase()} </AvatarFallback>
                   </Avatar>
                 )}
               </div>

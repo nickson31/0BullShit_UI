@@ -11,27 +11,30 @@ import { cn } from "@/lib/utils"
 
 interface CompactInvestorCardProps {
   investor: InvestorResult
-  onLike: (investorId: string) => void
-  onDislike: (investorId: string) => void
+  onToggleFavorite: (investorId: string) => void // New prop
+  onDislikeAction: (investorId: string) => void // New prop
   isFavorite: boolean
   isLoading: boolean
 }
 
 export default function CompactInvestorCard({
   investor,
-  onLike,
-  onDislike,
+  onToggleFavorite,
+  onDislikeAction,
   isFavorite,
   isLoading,
 }: CompactInvestorCardProps) {
-  const handleLike = (e: React.MouseEvent) => {
+  // Remove old handleLike and handleDislike functions
+
+  // ... in the component body ...
+  const handleHeartClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    onLike(investor.id)
+    onToggleFavorite(investor.id)
   }
 
-  const handleDislike = (e: React.MouseEvent) => {
+  const handleXClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    onDislike(investor.id)
+    onDislikeAction(investor.id)
   }
 
   return (
@@ -80,10 +83,11 @@ export default function CompactInvestorCard({
         </div>
       </CardContent>
       <CardFooter className="px-4 pb-3 pt-0 flex justify-end space-x-2">
+        {/* Heart Button */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleLike}
+          onClick={handleHeartClick} // Updated
           disabled={isLoading}
           className={cn(
             "h-7 w-7 p-0 rounded-full hover:bg-pink-100 dark:hover:bg-pink-900",
@@ -93,11 +97,12 @@ export default function CompactInvestorCard({
         >
           <Heart className={cn("h-4 w-4", isFavorite ? "fill-pink-500" : "")} />
         </Button>
+        {/* X Button */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleDislike}
-          disabled={isLoading || isFavorite} // Keep disabled if liked or loading
+          onClick={handleXClick} // Updated
+          disabled={isLoading} // Removed '|| isFavorite' as X can always be clicked to ensure dislike
           className="h-7 w-7 p-0 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
           title="Dislike Investor"
         >

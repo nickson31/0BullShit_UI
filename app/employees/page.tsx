@@ -12,17 +12,19 @@ export default function EmployeesPage() {
   const { toast } = useToast()
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
 
-  const handleEmployeeLikeDislike = useCallback(
-    async (employee: EmployeeResult, action: "like" | "dislike") => {
+  const handleEmployeeToggleFavorite = useCallback(
+    async (employee: EmployeeResult) => {
       setLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+      const currentIsFavorite = favoriteEmployees.some((fav) => fav.id === employee.id)
       try {
-        await api.updateEmployeeSentiment(employee.id, action)
-        if (action === "like") {
+        if (currentIsFavorite) {
+          await api.updateEmployeeSentiment(employee.id, "dislike")
+          removeFromFavorites(employee.id, "employee")
+          toast({ title: "Employee Unliked", description: `${employee.fullName} removed from favorites.` })
+        } else {
+          await api.updateEmployeeSentiment(employee.id, "like")
           addToFavorites(employee, "employee")
           toast({ title: "Employee Liked", description: `${employee.fullName} added to favorites.` })
-        } else {
-          removeFromFavorites(employee.id, "employee")
-          toast({ title: "Employee Disliked", description: `${employee.fullName} removed from favorites.` })
         }
       } catch (error) {
         toast({ title: "Error", description: "Failed to update employee status.", variant: "destructive" })
@@ -30,7 +32,23 @@ export default function EmployeesPage() {
         setLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
       }
     },
-    [addToFavorites, removeFromFavorites, toast],
+    [addToFavorites, removeFromFavorites, toast, favoriteEmployees],
+  )
+
+  const handleEmployeeDislikeAction = useCallback(
+    async (employee: EmployeeResult) => {
+      setLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+      try {
+        await api.updateEmployeeSentiment(employee.id, "dislike")
+        removeFromFavorites(employee.id, "employee")
+        toast({ title: "Employee Disliked", description: `${employee.fullName} marked as disliked.` })
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to update employee status.", variant: "destructive" })
+      } finally {
+        setLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
+      }
+    },
+    [removeFromFavorites, toast],
   )
 
   const employeesByFund = useMemo(() => {
@@ -61,8 +79,8 @@ export default function EmployeesPage() {
               key={fundName}
               fundName={fundName}
               employees={fundEmployees}
-              onLike={(emp) => handleEmployeeLikeDislike(emp, "like")}
-              onDislike={(emp) => handleEmployeeLikeDislike(emp, "dislike")}
+              onToggleFavorite={handleEmployeeToggleFavorite} // Updated
+              onDislikeAction={handleEmployeeDislikeAction} // Updated
               isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
               loadingStates={loadingStates}
             />
