@@ -12,6 +12,7 @@ import InvestorsResultsTable from "@/components/investors-results-table"
 import EmployeesResultsTable from "@/components/employees-results-table"
 import DeepAnalysisCard from "@/components/deep-analysis-card"
 import { useToast } from "@/components/ui/use-toast"
+import { useApp } from "@/contexts/AppContext"
 import { api, type ChatResponseType } from "@/services/api"
 
 interface Message {
@@ -52,6 +53,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const userName = "Nikita"
   const { toast } = useToast()
+  const { setLastInvestorResults, setLastEmployeeResults, setLastDeepAnalysis } = useApp()
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
 
@@ -120,6 +122,99 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       clearLoadingMessages()
       setLoadingMessage("")
 
+      // Store results in global context for persistence AND auto-save
+      if (apiResponse.type === "investor_results_normal") {
+        setLastInvestorResults(apiResponse.search_results.results)
+        setLastDeepAnalysis(null)
+
+        // Auto-guardar inversores con manejo de errores mejorado y sin bloquear
+        if (apiResponse.search_results.results.length > 0) {
+          // No await - ejecutar en background
+          Promise.allSettled(
+            apiResponse.search_results.results.map(async (investor) => {
+              const result = await api.saveInvestor(investor.id)
+              return { success: !result.message.includes("Failed"), id: investor.id, result }
+            }),
+          )
+            .then((results) => {
+              const successful = results.filter((r) => r.status === "fulfilled" && r.value.success).length
+              const failed = results.length - successful
+
+              console.log(`Auto-save investors: ${successful} successful, ${failed} failed`)
+
+              // Solo mostrar toast si hay éxitos
+              if (successful > 0) {
+                toast({
+                  title: "Investors Auto-saved",
+                  description: `${successful} investors saved for template generation${failed > 0 ? ` (${failed} failed)` : ""}`,
+                })
+              }
+            })
+            .catch((error) => {
+              console.error("Auto-save investors error:", error)
+            })
+        }
+      } else if (apiResponse.type === "investor_results_deep") {
+        setLastInvestorResults(apiResponse.search_results.results)
+        setLastDeepAnalysis(apiResponse.search_results.deep_analysis)
+
+        // Auto-guardar inversores con manejo de errores mejorado y sin bloquear
+        if (apiResponse.search_results.results.length > 0) {
+          // No await - ejecutar en background
+          Promise.allSettled(
+            apiResponse.search_results.results.map(async (investor) => {
+              const result = await api.saveInvestor(investor.id)
+              return { success: !result.message.includes("Failed"), id: investor.id, result }
+            }),
+          )
+            .then((results) => {
+              const successful = results.filter((r) => r.status === "fulfilled" && r.value.success).length
+              const failed = results.length - successful
+
+              console.log(`Auto-save deep investors: ${successful} successful, ${failed} failed`)
+
+              if (successful > 0) {
+                toast({
+                  title: "Investors Auto-saved",
+                  description: `${successful} investors saved for template generation${failed > 0 ? ` (${failed} failed)` : ""}`,
+                })
+              }
+            })
+            .catch((error) => {
+              console.error("Auto-save deep investors error:", error)
+            })
+        }
+      } else if (apiResponse.type === "employee_results") {
+        setLastEmployeeResults(apiResponse.search_results.employees)
+
+        // Auto-guardar empleados con manejo de errores mejorado y sin bloquear
+        if (apiResponse.search_results.employees.length > 0) {
+          // No await - ejecutar en background
+          Promise.allSettled(
+            apiResponse.search_results.employees.map(async (employee) => {
+              const result = await api.saveEmployee(employee.id)
+              return { success: !result.message.includes("Failed"), id: employee.id, result }
+            }),
+          )
+            .then((results) => {
+              const successful = results.filter((r) => r.status === "fulfilled" && r.value.success).length
+              const failed = results.length - successful
+
+              console.log(`Auto-save employees: ${successful} successful, ${failed} failed`)
+
+              if (successful > 0) {
+                toast({
+                  title: "Employees Auto-saved",
+                  description: `${successful} employees saved for template generation${failed > 0 ? ` (${failed} failed)` : ""}`,
+                })
+              }
+            })
+            .catch((error) => {
+              console.error("Auto-save employees error:", error)
+            })
+        }
+      }
+
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
@@ -156,7 +251,12 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
             <p className="text-sm">
               Encontré {response.search_results.results.length} inversores que podrían estar interesados en tu proyecto:
             </p>
-            <InvestorsResultsTable investors={response.search_results.results} projectId={projectId} />
+            <InvestorsResultsTable
+              investors={response.search_results.results}
+              projectId={projectId}
+              showLimit={true}
+              maxResults={5}
+            />
           </div>
         )
 
@@ -168,7 +268,12 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
               detallado:
             </p>
             <DeepAnalysisCard analysis={response.search_results.deep_analysis} />
-            <InvestorsResultsTable investors={response.search_results.results} projectId={projectId} />
+            <InvestorsResultsTable
+              investors={response.search_results.results}
+              projectId={projectId}
+              showLimit={true}
+              maxResults={5}
+            />
           </div>
         )
 
@@ -176,7 +281,12 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         return (
           <div className="space-y-4">
             <p className="text-sm">Encontré {response.search_results.employees.length} empleados relevantes:</p>
-            <EmployeesResultsTable employees={response.search_results.employees} projectId={projectId} />
+            <EmployeesResultsTable
+              employees={response.search_results.employees}
+              projectId={projectId}
+              showLimit={true}
+              maxResults={5}
+            />
             {response.search_results.employees_by_fund &&
               Object.keys(response.search_results.employees_by_fund).length > 0 && (
                 <div className="mt-4">
@@ -186,7 +296,12 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                       <h5 className="font-medium text-sm mb-2">
                         {fund} ({employees.length} empleados)
                       </h5>
-                      <EmployeesResultsTable employees={employees} projectId={projectId} />
+                      <EmployeesResultsTable
+                        employees={employees}
+                        projectId={projectId}
+                        showLimit={true}
+                        maxResults={3}
+                      />
                     </div>
                   ))}
                 </div>

@@ -1,32 +1,42 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import InvestorCard from "@/components/investor-card"
+import InvestorsResultsTable from "@/components/investors-results-table"
+import DeepAnalysisCard from "@/components/deep-analysis-card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 import { api } from "@/services/api"
+import { useApp } from "@/contexts/AppContext"
 import { useToast } from "@/components/ui/use-toast"
 
-interface PageProps {
-  params: {
-    projectId: string
-  }
-}
-
-export default function InvestorsPage({ params }: PageProps) {
-  const [investors, setInvestors] = useState<any[]>([])
+export default function InvestorsPage() {
+  const { lastInvestorResults, lastDeepAnalysis, setLastInvestorResults, setLastDeepAnalysis } = useApp()
+  const [investors, setInvestors] = useState(lastInvestorResults)
+  const [deepAnalysis, setDeepAnalysis] = useState(lastDeepAnalysis)
   const [isLoading, setIsLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
 
-  const loadInvestors = async (query?: string) => {
+  useEffect(() => {
+    setInvestors(lastInvestorResults)
+    setDeepAnalysis(lastDeepAnalysis)
+  }, [lastInvestorResults, lastDeepAnalysis])
+
+  const loadInvestors = async (query?: string, deep = false) => {
     setIsLoading(true)
     try {
-      const results = await api.searchInvestors(query || "", "normal")
+      const results = await api.searchInvestors(query || "", deep ? "deep" : "normal")
       setInvestors(results)
+      setLastInvestorResults(results)
+
+      if (deep) {
+        // For deep search, we would need to handle the deep analysis response
+        // This would come from the chat endpoint, not the direct search
+        setDeepAnalysis(null)
+        setLastDeepAnalysis(null)
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -38,10 +48,6 @@ export default function InvestorsPage({ params }: PageProps) {
     }
   }
 
-  useEffect(() => {
-    loadInvestors()
-  }, [])
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     loadInvestors(searchQuery)
@@ -50,7 +56,7 @@ export default function InvestorsPage({ params }: PageProps) {
   return (
     <div className="container py-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">All Investors</h1>
+        <h1 className="text-2xl font-bold">Investors {investors.length > 0 && `(${investors.length} results)`}</h1>
         <div className="flex gap-4">
           <form onSubmit={handleSearch} className="flex gap-2">
             <div className="relative">
@@ -70,6 +76,12 @@ export default function InvestorsPage({ params }: PageProps) {
         </div>
       </div>
 
+      {deepAnalysis && (
+        <div className="mb-6">
+          <DeepAnalysisCard analysis={deepAnalysis} />
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="flex space-x-2">
@@ -78,30 +90,13 @@ export default function InvestorsPage({ params }: PageProps) {
             <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce delay-200" />
           </div>
         </div>
+      ) : investors.length > 0 ? (
+        <InvestorsResultsTable investors={investors} projectId={"p1"} showLimit={false} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {investors.map((investor) => (
-            <InvestorCard
-              key={investor.id}
-              id={investor.id}
-              projectId={"p1"}
-              name={investor.Company_Name}
-              company={investor.Company_Name}
-              location={investor.Company_Location}
-              investingStage={investor.Investing_Stage}
-              categories={
-                Array.isArray(investor.Investment_Categories)
-                  ? investor.Investment_Categories
-                  : investor.Investment_Categories?.split(",").map((c: string) => c.trim()) || []
-              }
-              email={investor.Company_Email}
-              phone={investor.Company_Phone}
-              linkedin={investor.Company_Linkedin}
-              website={investor.Company_Website}
-              score={investor.Score}
-              onStatusChange={() => loadInvestors(searchQuery)}
-            />
-          ))}
+        <div className="text-center py-12">
+          <p className="text-slate-500 dark:text-slate-400 mb-4">
+            No investors found. Try searching for investors using the chat or search above.
+          </p>
         </div>
       )}
     </div>

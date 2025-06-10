@@ -55,28 +55,57 @@ export type ChatResponseType =
   | { type: "text_response"; content: string }
   | { type: "error"; content: string }
 
-// Helper function to handle API requests
+// Helper function to handle API requests with better error handling
 async function fetchApi(endpoint: string, options: RequestInit = {}) {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    credentials: "include",
-  })
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      credentials: "include",
+    })
 
-  if (!response.ok) {
-    let errorMessage = `API request failed with status ${response.status}`
-    try {
-      const errorData = await response.json()
-      errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage
-    } catch (e) {
-      // Ignore if error response is not JSON
+    // Log the response for debugging
+    console.log(`API ${endpoint} response status:`, response.status)
+
+    if (!response.ok) {
+      let errorMessage = `API request failed with status ${response.status}`
+      try {
+        const errorData = await response.text() // Use text() first to see raw response
+        console.log(`API ${endpoint} error response:`, errorData)
+
+        // Try to parse as JSON
+        try {
+          const jsonError = JSON.parse(errorData)
+          errorMessage = jsonError.message || jsonError.detail || jsonError.error || errorMessage
+        } catch {
+          // If not JSON, use the text as error message
+          errorMessage = errorData || errorMessage
+        }
+      } catch (e) {
+        console.error(`Failed to read error response from ${endpoint}:`, e)
+      }
+      throw new Error(errorMessage)
     }
-    throw new Error(errorMessage)
+
+    // Try to parse response as JSON
+    const responseText = await response.text()
+    if (!responseText) {
+      return {} // Return empty object for empty responses
+    }
+
+    try {
+      return JSON.parse(responseText)
+    } catch (e) {
+      console.warn(`Response from ${endpoint} is not valid JSON:`, responseText)
+      return { message: responseText } // Return as message if not JSON
+    }
+  } catch (error) {
+    console.error(`API request to ${endpoint} failed:`, error)
+    throw error
   }
-  return response.json()
 }
 
 export const api = {
@@ -100,25 +129,49 @@ export const api = {
   },
 
   async getSavedInvestors(): Promise<any[]> {
-    return fetchApi("/saved/investors")
+    try {
+      const result = await fetchApi("/saved/investors")
+      return Array.isArray(result) ? result : []
+    } catch (error) {
+      console.error("Failed to get saved investors:", error)
+      return []
+    }
   },
 
   async saveInvestor(investorId: string): Promise<{ message: string }> {
-    return fetchApi("/save/investor", {
-      method: "POST",
-      body: JSON.stringify({ investor_id: investorId }),
-    })
+    try {
+      console.log(`Attempting to save investor: ${investorId}`)
+
+      const result = await fetchApi("/save/investor", {
+        method: "POST",
+        body: JSON.stringify({ investor_id: investorId }),
+      })
+
+      console.log(`Successfully saved investor ${investorId}:`, result)
+      return result
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      console.error(`Failed to save investor ${investorId}:`, errorMessage)
+
+      // Don't throw error, just return a failure message
+      return { message: `Failed to save: ${errorMessage}` }
+    }
   },
 
   async updateInvestorSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
-    return fetchApi("/sentiment", {
-      method: "POST",
-      body: JSON.stringify({
-        entity_id: entityId,
-        entity_type: "investor",
-        sentiment,
-      }),
-    })
+    try {
+      return await fetchApi("/sentiment", {
+        method: "POST",
+        body: JSON.stringify({
+          entity_id: entityId,
+          entity_type: "investor",
+          sentiment,
+        }),
+      })
+    } catch (error) {
+      console.error(`Failed to update investor sentiment ${entityId}:`, error)
+      throw error
+    }
   },
 
   // Employee endpoints
@@ -130,25 +183,49 @@ export const api = {
   },
 
   async getSavedEmployees(): Promise<any[]> {
-    return fetchApi("/saved/employees")
+    try {
+      const result = await fetchApi("/saved/employees")
+      return Array.isArray(result) ? result : []
+    } catch (error) {
+      console.error("Failed to get saved employees:", error)
+      return []
+    }
   },
 
   async saveEmployee(employeeId: string): Promise<{ message: string }> {
-    return fetchApi("/save/employee", {
-      method: "POST",
-      body: JSON.stringify({ employee_id: employeeId }),
-    })
+    try {
+      console.log(`Attempting to save employee: ${employeeId}`)
+
+      const result = await fetchApi("/save/employee", {
+        method: "POST",
+        body: JSON.stringify({ employee_id: employeeId }),
+      })
+
+      console.log(`Successfully saved employee ${employeeId}:`, result)
+      return result
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      console.error(`Failed to save employee ${employeeId}:`, errorMessage)
+
+      // Don't throw error, just return a failure message
+      return { message: `Failed to save: ${errorMessage}` }
+    }
   },
 
   async updateEmployeeSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
-    return fetchApi("/sentiment", {
-      method: "POST",
-      body: JSON.stringify({
-        entity_id: entityId,
-        entity_type: "employee",
-        sentiment,
-      }),
-    })
+    try {
+      return await fetchApi("/sentiment", {
+        method: "POST",
+        body: JSON.stringify({
+          entity_id: entityId,
+          entity_type: "employee",
+          sentiment,
+        }),
+      })
+    } catch (error) {
+      console.error(`Failed to update employee sentiment ${entityId}:`, error)
+      throw error
+    }
   },
 
   // Template generation

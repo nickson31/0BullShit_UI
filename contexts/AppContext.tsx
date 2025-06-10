@@ -1,19 +1,37 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from "react"
-import type { Employee } from "@/types/supabase" // Assuming this type is correct for your Supabase 'employees' table
+import type { Employee } from "@/types/supabase"
+import type { InvestorResult, EmployeeResult } from "@/services/api"
 import { employeeService } from "@/services/employees"
+import { api } from "@/services/api"
 
 interface AppContextType {
+  // Employee data
   employees: Employee[]
   selectedEmployee: Employee | null
   loading: boolean
   error: string | null
   searchEmployees: (query: string) => Promise<void>
-  filterEmployeesByCompany: (companyName: string) => Promise<void> // New function
+  filterEmployeesByCompany: (companyName: string) => Promise<void>
   selectEmployee: (employee: Employee | null) => void
   updateEmployeeScore: (id: string, score: number) => Promise<void>
-  loadAllEmployees: () => Promise<void> // To load all employees
+  loadAllEmployees: () => Promise<void>
+
+  // Chat search results
+  lastInvestorResults: InvestorResult[]
+  lastEmployeeResults: EmployeeResult[]
+  lastDeepAnalysis: string | null
+  setLastInvestorResults: (results: InvestorResult[]) => void
+  setLastEmployeeResults: (results: EmployeeResult[]) => void
+  setLastDeepAnalysis: (analysis: string | null) => void
+
+  // Favorites
+  favoriteInvestors: InvestorResult[]
+  favoriteEmployees: EmployeeResult[]
+  addToFavorites: (item: InvestorResult | EmployeeResult, type: "investor" | "employee") => void
+  removeFromFavorites: (id: string, type: "investor" | "employee") => void
+  loadFavorites: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -23,40 +41,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentFilter, setCurrentFilter] = useState<"all" | "search" | "company">("all")
-  const [currentSearchQuery, setCurrentSearchQuery] = useState("")
-  const [currentCompanyFilter, setCurrentCompanyFilter] = useState("")
+
+  // Chat search results
+  const [lastInvestorResults, setLastInvestorResults] = useState<InvestorResult[]>([])
+  const [lastEmployeeResults, setLastEmployeeResults] = useState<EmployeeResult[]>([])
+  const [lastDeepAnalysis, setLastDeepAnalysis] = useState<string | null>(null)
+
+  // Favorites
+  const [favoriteInvestors, setFavoriteInvestors] = useState<InvestorResult[]>([])
+  const [favoriteEmployees, setFavoriteEmployees] = useState<EmployeeResult[]>([])
 
   const loadAllEmployees = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       const data = await employeeService.getAll()
-      setEmployees(data || []) // Ensure we always set an array
-      setCurrentFilter("all")
+      setEmployees(data || [])
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to load employees"
       console.error("AppContext loadAllEmployees error:", errorMessage)
       setError(errorMessage)
-      setEmployees([]) // Set empty array on error
+      setEmployees([])
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    loadAllEmployees()
-  }, [loadAllEmployees])
-
   const searchEmployees = useCallback(async (query: string) => {
     try {
       setLoading(true)
       setError(null)
-      setSelectedEmployee(null) // Clear selection on new search
+      setSelectedEmployee(null)
       const data = await employeeService.search(query)
       setEmployees(data)
-      setCurrentFilter("search")
-      setCurrentSearchQuery(query)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to search employees")
       setEmployees([])
@@ -69,11 +86,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       setError(null)
-      setSelectedEmployee(null) // Clear selection on new filter
-      const data = await employeeService.searchByCompany(companyName) // Assumes searchByCompany exists
+      setSelectedEmployee(null)
+      const data = await employeeService.searchByCompany(companyName)
       setEmployees(data)
-      setCurrentFilter("company")
-      setCurrentCompanyFilter(companyName)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to filter employees by company")
       setEmployees([])
@@ -97,6 +112,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [selectedEmployee],
   )
 
+  const addToFavorites = useCallback((item: InvestorResult | EmployeeResult, type: "investor" | "employee") => {
+    if (type === "investor") {
+      setFavoriteInvestors((prev) => {
+        const exists = prev.find((inv) => inv.id === item.id)
+        if (!exists) {
+          return [...prev, item as InvestorResult]
+        }
+        return prev
+      })
+    } else {
+      setFavoriteEmployees((prev) => {
+        const exists = prev.find((emp) => emp.id === item.id)
+        if (!exists) {
+          return [...prev, item as EmployeeResult]
+        }
+        return prev
+      })
+    }
+  }, [])
+
+  const removeFromFavorites = useCallback((id: string, type: "investor" | "employee") => {
+    if (type === "investor") {
+      setFavoriteInvestors((prev) => prev.filter((inv) => inv.id !== id))
+    } else {
+      setFavoriteEmployees((prev) => prev.filter((emp) => emp.id !== id))
+    }
+  }, [])
+
+  const loadFavorites = useCallback(async () => {
+    try {
+      const [investors, employees] = await Promise.all([api.getSavedInvestors(), api.getSavedEmployees()])
+      setFavoriteInvestors(Array.isArray(investors) ? investors : [])
+      setFavoriteEmployees(Array.isArray(employees) ? employees : [])
+    } catch (error) {
+      console.error("Failed to load favorites:", error)
+      // Establecer arrays vacíos en caso de error
+      setFavoriteInvestors([])
+      setFavoriteEmployees([])
+    }
+  }, [])
+
+  useEffect(() => {
+    loadAllEmployees()
+    loadFavorites()
+  }, [loadAllEmployees, loadFavorites])
+
   const value = {
     employees,
     selectedEmployee,
@@ -107,6 +168,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectEmployee: setSelectedEmployee,
     updateEmployeeScore,
     loadAllEmployees,
+    lastInvestorResults,
+    lastEmployeeResults,
+    lastDeepAnalysis,
+    setLastInvestorResults,
+    setLastEmployeeResults,
+    setLastDeepAnalysis,
+    favoriteInvestors,
+    favoriteEmployees,
+    addToFavorites,
+    removeFromFavorites,
+    loadFavorites,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
