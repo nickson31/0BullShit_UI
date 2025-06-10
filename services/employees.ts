@@ -1,76 +1,182 @@
-import { supabase } from "@/lib/supabase"
-import type { Employee } from "@/types/supabase"
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://zerobs-back-final.onrender.com"
 
 export const employeeService = {
-  async getAll(): Promise<Employee[]> {
-    const { data, error } = await supabase
-      .from("employees")
-      .select("*")
-      .order("decision_score", { ascending: false, nullsFirst: false }) // Keep nulls at the end or beginning
-      .limit(100) // Add a limit for performance
+  async getAll(): Promise<any[]> {
+    try {
+      console.log("Fetching all employees using search with empty query")
 
-    if (error) {
+      // Use search endpoint with empty query to get all employees
+      const response = await fetch(`${API_BASE_URL}/search/employees`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ query: "" }),
+      })
+
+      console.log("Response status:", response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("Response error:", errorText)
+        throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log("Employees data received:", data)
+      return data
+    } catch (error) {
       console.error("Error fetching all employees:", error)
-      throw error
+      return []
     }
-    return data || []
   },
 
-  async getById(id: string): Promise<Employee | null> {
-    const { data, error } = await supabase.from("employees").select("*").eq("id", id).single()
-
-    if (error) {
+  async getById(id: string): Promise<any | null> {
+    try {
+      // Since there's no specific endpoint for getting by ID, we'll search and filter
+      const allEmployees = await this.getAll()
+      return allEmployees.find((emp) => emp.id === id) || null
+    } catch (error) {
       console.error(`Error fetching employee by ID ${id}:`, error)
-      throw error
+      return null
     }
-    return data
   },
 
-  async search(query: string): Promise<Employee[]> {
-    if (!query.trim()) {
-      // If query is empty, return all or a subset
-      return this.getAll()
-    }
-    const { data, error } = await supabase
-      .from("employees")
-      .select("*")
-      // Ensure column names match your Supabase table exactly
-      .or(`fullName.ilike.%${query}%,current_company_name.ilike.%${query}%,current_job_title.ilike.%${query}%`)
-      .order("decision_score", { ascending: false, nullsFirst: false })
-      .limit(50) // Limit search results
+  async search(query: string): Promise<any[]> {
+    try {
+      console.log("Searching employees with query:", query)
 
-    if (error) {
+      const response = await fetch(`${API_BASE_URL}/search/employees`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ query }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to search employees: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log("Search results:", data)
+      return data
+    } catch (error) {
       console.error("Error searching employees:", error)
-      throw error
+      return []
     }
-    return data || []
   },
 
-  // New function to search by company name
-  async searchByCompany(companyName: string): Promise<Employee[]> {
-    if (!companyName.trim()) {
-      return [] // Or return all if that's desired for empty company filter
-    }
-    const { data, error } = await supabase
-      .from("employees")
-      .select("*")
-      .ilike("current_company_name", `%${companyName}%`) // Case-insensitive search for company name
-      .order("decision_score", { ascending: false, nullsFirst: false })
-      .limit(50)
+  async searchByCompany(companyName: string): Promise<any[]> {
+    try {
+      console.log("Searching employees by company:", companyName)
 
-    if (error) {
+      // Use the search endpoint with company name as query
+      const response = await fetch(`${API_BASE_URL}/search/employees`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ query: companyName }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to search employees by company: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log("Company search results:", data)
+      return data
+    } catch (error) {
       console.error(`Error searching employees by company ${companyName}:`, error)
-      throw error
+      return []
     }
-    return data || []
   },
 
-  async updateDecisionScore(id: string, score: number): Promise<void> {
-    const { error } = await supabase.from("employees").update({ decision_score: score }).eq("id", id)
+  async getSavedEmployees(): Promise<any[]> {
+    try {
+      console.log("Fetching saved employees")
 
-    if (error) {
-      console.error(`Error updating decision score for employee ${id}:`, error)
+      const response = await fetch(`${API_BASE_URL}/saved/employees`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch saved employees: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log("Saved employees:", data)
+      return data
+    } catch (error) {
+      console.error("Error fetching saved employees:", error)
+      return []
+    }
+  },
+
+  async saveEmployee(employeeId: string): Promise<void> {
+    try {
+      console.log("Saving employee:", employeeId)
+
+      const response = await fetch(`${API_BASE_URL}/save/employee`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ employee_id: employeeId }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to save employee: ${response.status}`)
+      }
+
+      console.log("Employee saved successfully")
+    } catch (error) {
+      console.error(`Error saving employee ${employeeId}:`, error)
       throw error
     }
+  },
+
+  async updateSentiment(employeeId: string, sentiment: "like" | "dislike"): Promise<void> {
+    try {
+      console.log("Updating employee sentiment:", employeeId, sentiment)
+
+      const response = await fetch(`${API_BASE_URL}/sentiment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          entity_id: employeeId,
+          entity_type: "employee",
+          sentiment,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to update employee sentiment: ${response.status}`)
+      }
+
+      console.log("Employee sentiment updated successfully")
+    } catch (error) {
+      console.error(`Error updating employee sentiment ${employeeId}:`, error)
+      throw error
+    }
+  },
+
+  // Legacy method for compatibility - maps to sentiment
+  async updateDecisionScore(id: string, score: number): Promise<void> {
+    // Convert score to sentiment (scores > 5 = like, <= 5 = dislike)
+    const sentiment = score > 5 ? "like" : "dislike"
+    return this.updateSentiment(id, sentiment)
   },
 }

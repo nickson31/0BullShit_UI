@@ -25,7 +25,7 @@ export default function InvestorsPage({ params }: PageProps) {
   const loadInvestors = async (query?: string) => {
     setIsLoading(true)
     try {
-      const results = await api.findInvestors(query || "")
+      const results = await api.searchInvestors(query || "", "normal")
       setInvestors(results)
     } catch (error) {
       toast({

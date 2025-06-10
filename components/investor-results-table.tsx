@@ -1,53 +1,22 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "next/navigation" // Changed from "next/navigation"
 import type { InvestorResult } from "@/services/api"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ExternalLink, Users, ThumbsUp, ThumbsDown } from "lucide-react"
-import { api } from "@/services/api"
-import { useToast } from "@/components/ui/use-toast"
+import { ExternalLink, Users } from "lucide-react"
 
 interface InvestorResultsTableProps {
   investors: InvestorResult[]
-  projectId: string
+  projectId: string // Needed for potential future actions like saving sentiment from table
 }
 
 export default function InvestorResultsTable({ investors, projectId }: InvestorResultsTableProps) {
   const router = useRouter()
-  const { toast } = useToast()
-  const [sentiments, setSentiments] = useState<Record<string, "like" | "dislike" | null>>({})
-  const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
 
   const handleViewEmployees = (companyName: string) => {
     router.push(`/employees?company=${encodeURIComponent(companyName)}`)
-  }
-
-  const handleSentiment = async (investorId: string, sentiment: "like" | "dislike") => {
-    setLoadingStates((prev) => ({ ...prev, [investorId]: true }))
-
-    try {
-      await api.updateInvestorSentiment(projectId, investorId, sentiment)
-      setSentiments((prev) => ({ ...prev, [investorId]: sentiment }))
-
-      toast({
-        title: sentiment === "like" ? "Investor saved" : "Investor dismissed",
-        description:
-          sentiment === "like"
-            ? "The investor has been added to your saved list"
-            : "The investor has been marked as not interested",
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update investor status. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoadingStates((prev) => ({ ...prev, [investorId]: false }))
-    }
   }
 
   if (!investors || investors.length === 0) {
@@ -69,16 +38,7 @@ export default function InvestorResultsTable({ investors, projectId }: InvestorR
         </TableHeader>
         <TableBody>
           {investors.map((investor) => (
-            <TableRow
-              key={investor.id}
-              className={
-                sentiments[investor.id] === "like"
-                  ? "bg-green-50 dark:bg-green-900/20"
-                  : sentiments[investor.id] === "dislike"
-                    ? "bg-red-50 dark:bg-red-900/20"
-                    : ""
-              }
-            >
+            <TableRow key={investor.id}>
               <TableCell>
                 <div className="font-medium">{investor.Company_Name}</div>
                 {investor.Company_Website && (
@@ -137,41 +97,17 @@ export default function InvestorResultsTable({ investors, projectId }: InvestorR
                   "-"
                 )}
               </TableCell>
-              <TableCell className="text-center">
-                <div className="flex items-center justify-center space-x-1">
-                  <Button
-                    variant={sentiments[investor.id] === "like" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleSentiment(investor.id, "like")}
-                    disabled={loadingStates[investor.id] || sentiments[investor.id] === "dislike"}
-                    className="h-8 w-8 p-0"
-                  >
-                    <ThumbsUp className="h-4 w-4" />
-                    <span className="sr-only">Like</span>
-                  </Button>
-
-                  <Button
-                    variant={sentiments[investor.id] === "dislike" ? "destructive" : "outline"}
-                    size="sm"
-                    onClick={() => handleSentiment(investor.id, "dislike")}
-                    disabled={loadingStates[investor.id] || sentiments[investor.id] === "like"}
-                    className="h-8 w-8 p-0"
-                  >
-                    <ThumbsDown className="h-4 w-4" />
-                    <span className="sr-only">Dislike</span>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleViewEmployees(investor.Company_Name)}
-                    title="View Employees"
-                    className="h-8 w-8 p-0"
-                  >
-                    <Users className="h-4 w-4" />
-                    <span className="sr-only">View Employees</span>
-                  </Button>
-                </div>
+              <TableCell className="text-center space-x-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewEmployees(investor.Company_Name)}
+                  title="View Employees"
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="sr-only">View Employees</span>
+                </Button>
+                {/* Add Like/Dislike buttons here if needed, similar to InvestorCard */}
               </TableCell>
             </TableRow>
           ))}

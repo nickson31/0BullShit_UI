@@ -2,9 +2,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://zerobs-back-final.onrender.com"
 
 interface ChatRequest {
-  project_id: string
   message: string
-  deep_research?: boolean
 }
 
 // More specific types for ChatResponse based on app.py
@@ -41,58 +39,15 @@ export type ChatResponseType =
   | { type: "text_response"; content: string }
   | { type: "error"; content: string }
 
-interface ProjectData {
-  id: string
-  user_id: string
-  project_name: string
-  project_description: string
-  kpi_data: Record<string, any>
-  status: string
-  plan?: string // Added from app.py
-}
-
-interface ProjectResponse {
-  project: ProjectData
-  chat_history: Array<{
-    role: "user" | "assistant"
-    content: string
-    timestamp: string
-  }>
-  saved_investors_count: number
-  user_plan: string
-}
-
-interface SavedInvestor extends InvestorResult {
-  added_at: string
-  sentiment: "like" | "dislike" | null
-}
-
-interface SavedInvestorsResponse {
-  saved_investors: SavedInvestor[]
-}
-
-interface GeneratedTemplate {
-  id: string
-  target_investor_id: string
-  platform: string
-  generated_template: string
-  created_at: string
-  target_name: string
-}
-
-interface ProjectTemplatesResponse {
-  templates: GeneratedTemplate[]
-}
-
 // Helper function to handle API requests
 async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
-    credentials: "include", // Add credentials: 'include' to all requests
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
     },
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -116,75 +71,100 @@ export const api = {
     })
   },
 
-  async getProject(projectId: string): Promise<ProjectResponse> {
-    return fetchApi(`/projects/${projectId}`)
+  async getSessionInfo(): Promise<any> {
+    return fetchApi("/session/info")
   },
 
-  async updateProjectStatus(projectId: string, status: string): Promise<{ message: string }> {
-    return fetchApi(`/projects/${projectId}/status`, {
-      method: "PUT",
-      body: JSON.stringify({ status }),
-    })
-  },
-
-  async updateProjectKPI(projectId: string, kpiData: Record<string, any>): Promise<{ message: string }> {
-    return fetchApi(`/projects/${projectId}/kpi`, {
-      method: "PUT",
-      body: JSON.stringify({ kpi_data: kpiData }),
-    })
-  },
-
-  async getSavedInvestors(projectId: string): Promise<SavedInvestorsResponse> {
-    return fetchApi(`/projects/${projectId}/saved-investors`)
-  },
-
-  async findInvestors(query: string, deep_research = false): Promise<InvestorResult[] | { error: string }> {
-    // The legacy endpoint in app.py takes 'query' and 'deep_research'
-    return fetchApi("/find_investors", {
+  // Investor endpoints
+  async searchInvestors(query: string, type: "normal" | "deep" = "normal"): Promise<InvestorResult[]> {
+    return fetchApi("/search/investors", {
       method: "POST",
-      body: JSON.stringify({ query, deep_research }),
+      body: JSON.stringify({ query, type }),
     })
   },
 
-  async getProjectTemplates(projectId: string): Promise<ProjectTemplatesResponse> {
-    return fetchApi(`/projects/${projectId}/templates`)
+  async getSavedInvestors(): Promise<any[]> {
+    return fetchApi("/saved/investors")
   },
 
-  async getSavedItems(projectId: string, type: "investors" | "employees"): Promise<any[]> {
-    return fetchApi(`/saved/${type}`)
-  },
-
-  async getUnwantedItems(projectId: string): Promise<any[]> {
-    return fetchApi(`/unwanted`)
-  },
-
-  async removeSentiment(sentimentId: string): Promise<{ message: string }> {
-    return fetchApi(`/sentiment/${sentimentId}`, {
-      method: "DELETE",
+  async saveInvestor(investorId: string): Promise<{ message: string }> {
+    return fetchApi("/save/investor", {
+      method: "POST",
+      body: JSON.stringify({ investor_id: investorId }),
     })
   },
 
-  async updateInvestorSentiment(
-    projectId: string,
-    entityId: string,
-    sentiment: "like" | "dislike",
-  ): Promise<ChatResponseType> {
-    return fetchApi(`/sentiment`, {
+  async updateInvestorSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
+    return fetchApi("/sentiment", {
       method: "POST",
       body: JSON.stringify({
         entity_id: entityId,
-        sentiment: sentiment,
+        entity_type: "investor",
+        sentiment,
       }),
     })
   },
 
-  async generateTemplate(investorId: string, platform: string): Promise<OutreachTemplate> {
-    return fetchApi(`/generate/template`, {
+  // Employee endpoints
+  async searchEmployees(query: string): Promise<any[]> {
+    return fetchApi("/search/employees", {
+      method: "POST",
+      body: JSON.stringify({ query }),
+    })
+  },
+
+  async getSavedEmployees(): Promise<any[]> {
+    return fetchApi("/saved/employees")
+  },
+
+  async saveEmployee(employeeId: string): Promise<{ message: string }> {
+    return fetchApi("/save/employee", {
+      method: "POST",
+      body: JSON.stringify({ employee_id: employeeId }),
+    })
+  },
+
+  async updateEmployeeSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
+    return fetchApi("/sentiment", {
       method: "POST",
       body: JSON.stringify({
-        investor_id: investorId,
-        platform: platform,
+        entity_id: entityId,
+        entity_type: "employee",
+        sentiment,
       }),
     })
   },
+
+  // Template generation
+  async generateTemplate(data: any): Promise<any> {
+    return fetchApi("/generate/template", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  },
+
+  // Legacy methods for compatibility
+  async findInvestors(query: string, deep_research = false): Promise<InvestorResult[]> {
+    return this.searchInvestors(query, deep_research ? "deep" : "normal")
+  },
+
+  async getSavedItems(projectId: string, type: "investors" | "employees"): Promise<any[]> {
+    if (type === "investors") {
+      return this.getSavedInvestors()
+    } else {
+      return this.getSavedEmployees()
+    }
+  },
+
+  async getUnwantedItems(projectId: string): Promise<any[]> {
+    // This might need a specific endpoint or could be handled through session info
+    return []
+  },
+
+  async removeSentiment(sentimentId: string): Promise<{ message: string }> {
+    // This might need a specific endpoint for removing sentiments
+    throw new Error("Remove sentiment endpoint not implemented")
+  },
 }
+
+export type { InvestorResult }

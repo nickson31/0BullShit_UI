@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils"
 import InvestorResultsTable from "@/components/investor-results-table"
 import GrowthUpsellCard from "@/components/growth-upsell-card"
 import OutreachUpsellCard from "@/components/outreach-upsell-card"
-import AILoadingState from "@/components/ai-loading-state"
 import { useToast } from "@/components/ui/use-toast"
 import { api, type ChatResponseType } from "@/services/api"
 
@@ -26,8 +25,6 @@ interface Message {
 const initialMessages: Message[] = []
 
 const suggestionChipsData = [
-  { text: "Find investors for my AI-powered fintech startup", icon: Sparkles },
-  { text: "Search for employees at Sequoia Capital", icon: Sparkles },
   { text: "Draft an email to a potential investor", icon: Sparkles },
   { text: "What are common pitfalls in early-stage funding?", icon: Sparkles },
 ]
@@ -40,8 +37,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   const userName = "Nikita" // Placeholder
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
-  const [loadingType, setLoadingType] = useState<"deep-research" | "employee-search" | null>(null)
-  const [pendingResponse, setPendingResponse] = useState<ChatResponseType | null>(null)
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -67,48 +62,18 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     setIsLoading(true)
 
     try {
-      // Determine if this is likely an employee search or investor search
-      const isEmployeeSearch =
-        messageText.toLowerCase().includes("employee") ||
-        messageText.toLowerCase().includes("people") ||
-        messageText.toLowerCase().includes("staff") ||
-        messageText.toLowerCase().includes("team") ||
-        messageText.toLowerCase().includes("work") ||
-        messageText.toLowerCase().includes("who") ||
-        messageText.toLowerCase().includes("at ")
+      // Use the correct chat endpoint with just message
+      const apiResponse = await api.chat({
+        message: messageText,
+      })
 
-      // Show appropriate loading state
-      if (isDeepResearch || (!isEmployeeSearch && messageText.length > 30)) {
-        setLoadingType("deep-research")
-      } else if (isEmployeeSearch) {
-        setLoadingType("employee-search")
-      } else {
-        // For simple responses, just show the typing indicator
-        const apiResponse = await api.chat({
-          project_id: projectId,
-          message: messageText,
-          deep_research: isDeepResearch,
-        })
-
-        const botMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          sender: "bot",
-          timestamp: new Date(),
-          rawApiResponse: apiResponse,
-        }
-        setMessages((prev) => [...prev, botMessage])
-        setIsLoading(false)
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: "bot",
+        timestamp: new Date(),
+        rawApiResponse: apiResponse,
       }
-
-      if (loadingType) {
-        // Store the API response to be displayed after loading animation completes
-        const apiResponse = await api.chat({
-          project_id: projectId,
-          message: messageText,
-          deep_research: isDeepResearch,
-        })
-        setPendingResponse(apiResponse)
-      }
+      setMessages((prev) => [...prev, botMessage])
     } catch (error) {
       const errorResponseMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -122,24 +87,9 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         description: (error as Error).message || "Failed to send message. Please try again.",
         variant: "destructive",
       })
+    } finally {
       setIsLoading(false)
-      setLoadingType(null)
     }
-  }
-
-  const handleLoadingComplete = () => {
-    if (pendingResponse) {
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        timestamp: new Date(),
-        rawApiResponse: pendingResponse,
-      }
-      setMessages((prev) => [...prev, botMessage])
-      setPendingResponse(null)
-    }
-    setIsLoading(false)
-    setLoadingType(null)
   }
 
   const renderBotMessageContent = (response: ChatResponseType) => {
@@ -266,20 +216,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 )}
               </div>
             ))}
-
-            {isLoading && loadingType && (
-              <div className="flex items-start gap-3 justify-start w-full">
-                <Avatar className="h-8 w-8 border border-slate-200 dark:border-slate-700 flex-shrink-0">
-                  <AvatarImage src="/placeholder.svg?width=32&height=32" alt="0BullShit" />
-                  <AvatarFallback>0B</AvatarFallback>
-                </Avatar>
-                <div className="max-w-[calc(100%-4rem)] w-full">
-                  <AILoadingState type={loadingType} onComplete={handleLoadingComplete} />
-                </div>
-              </div>
-            )}
-
-            {isLoading && !loadingType && (
+            {isLoading && messages.length > 0 && (
               <div className="flex items-start gap-3 justify-start">
                 <Avatar className="h-8 w-8 border border-slate-200 dark:border-slate-700 flex-shrink-0">
                   <AvatarImage src="/placeholder.svg?width=32&height=32" alt="0BullShit" />
@@ -324,7 +261,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
               minRows={1}
               maxRows={6}
               style={{ minHeight: "44px" }}
-              disabled={isLoading}
             />
             <Button
               variant="ghost"
@@ -344,7 +280,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 size="icon"
                 className="text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full w-8 h-8"
                 aria-label="Upload file"
-                disabled={isLoading}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -353,7 +288,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 size="icon"
                 className="text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full w-8 h-8"
                 aria-label="Use microphone"
-                disabled={isLoading}
               >
                 <Mic className="h-4 w-4" />
               </Button>
@@ -369,7 +303,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 )}
                 aria-label="Toggle Deep Research"
                 aria-pressed={isDeepResearch}
-                disabled={isLoading}
               >
                 Deep Research
               </Button>
