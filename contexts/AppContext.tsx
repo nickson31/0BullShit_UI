@@ -1,10 +1,22 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from "react"
-import type { InvestorResult, EmployeeResult } from "@/services/api"
+import type { InvestorResult, EmployeeResult, Project, UserProfile } from "@/services/api"
 import { api } from "@/services/api"
+import { useRouter } from "next/navigation"
 
 interface AppContextType {
+  // User & Auth
+  profile: UserProfile | null
+  credits: number | null
+  isLoadingProfile: boolean
+
+  // Projects
+  projects: Project[]
+  currentProject: Project | null
+  setCurrentProject: (project: Project | null) => void
+  fetchProfileAndProjects: () => Promise<void>
+
   // Chat search results
   lastInvestorResults: InvestorResult[]
   lastEmployeeResults: EmployeeResult[]
@@ -12,81 +24,86 @@ interface AppContextType {
   setLastInvestorResults: (results: InvestorResult[]) => void
   setLastEmployeeResults: (results: EmployeeResult[]) => void
   setLastDeepAnalysis: (analysis: string | null) => void
-
-  // Favorites
-  favoriteInvestors: InvestorResult[]
-  favoriteEmployees: EmployeeResult[]
-  addToFavorites: (item: InvestorResult | EmployeeResult, type: "investor" | "employee") => void
-  removeFromFavorites: (id: string, type: "investor" | "employee") => void
-  loadFavorites: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  // Chat search results state
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [credits, setCredits] = useState<number | null>(null)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
+
+  const [projects, setProjects] = useState<Project[]>([])
+  const [currentProject, setCurrentProject] = useState<Project | null>(null)
+
   const [lastInvestorResults, setLastInvestorResults] = useState<InvestorResult[]>([])
   const [lastEmployeeResults, setLastEmployeeResults] = useState<EmployeeResult[]>([])
   const [lastDeepAnalysis, setLastDeepAnalysis] = useState<string | null>(null)
 
-  // Favorites state
-  const [favoriteInvestors, setFavoriteInvestors] = useState<InvestorResult[]>([])
-  const [favoriteEmployees, setFavoriteEmployees] = useState<EmployeeResult[]>([])
+  const router = useRouter()
 
-  const addToFavorites = useCallback((item: InvestorResult | EmployeeResult, type: "investor" | "employee") => {
-    if (type === "investor") {
-      setFavoriteInvestors((prev) => {
-        if (!prev.some((inv) => inv.id === item.id)) {
-          return [...prev, item as InvestorResult]
-        }
-        return prev
-      })
-    } else {
-      setFavoriteEmployees((prev) => {
-        if (!prev.some((emp) => emp.id === item.id)) {
-          return [...prev, item as EmployeeResult]
-        }
-        return prev
-      })
+  const fetchProfileAndProjects = useCallback(async () => {
+    setIsLoadingProfile(true)
+    const token = localStorage.getItem("authToken")
+    if (!token) {
+      setIsLoadingProfile(false)
+      // No need to redirect here, AuthProvider handles it
+      return
     }
-  }, [])
 
-  const removeFromFavorites = useCallback((id: string, type: "investor" | "employee") => {
-    if (type === "investor") {
-      setFavoriteInvestors((prev) => prev.filter((inv) => inv.id !== id))
-    } else {
-      setFavoriteEmployees((prev) => prev.filter((emp) => emp.id !== id))
-    }
-  }, [])
-
-  const loadFavorites = useCallback(async () => {
     try {
-      const [investors, employees] = await Promise.all([api.getSavedInvestors(), api.getSavedEmployees()])
-      setFavoriteInvestors(Array.isArray(investors) ? investors : [])
-      setFavoriteEmployees(Array.isArray(employees) ? employees : [])
+      const profileData = await api.getProfile()
+      setProfile(profileData.user)
+      setCredits(profileData.user.credits)
+      setProjects(profileData.projects)
+
+      if (profileData.projects.length > 0) {
+        const lastProjectId = localStorage.getItem("lastProjectId")
+        const projectToSet = profileData.projects.find((p) => p.id === lastProjectId) || profileData.projects[0]
+        setCurrentProject(projectToSet)
+      } else {
+        setCurrentProject(null)
+      }
     } catch (error) {
-      console.error("Failed to load favorites:", error)
-      setFavoriteInvestors([])
-      setFavoriteEmployees([])
+      console.error("Failed to fetch profile and projects:", error)
+      // Token might be invalid, log out
+      localStorage.removeItem("authToken")
+      setProfile(null)
+      setProjects([])
+      setCurrentProject(null)
+      router.push("/login")
+    } finally {
+      setIsLoadingProfile(false)
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
-    loadFavorites()
-  }, [loadFavorites])
+    fetchProfileAndProjects()
+  }, [fetchProfileAndProjects])
+
+  const handleSetCurrentProject = (project: Project | null) => {
+    setCurrentProject(project)
+    if (project) {
+      localStorage.setItem("lastProjectId", project.id)
+    } else {
+      localStorage.removeItem("lastProjectId")
+    }
+  }
 
   const value = {
+    profile,
+    credits,
+    isLoadingProfile,
+    projects,
+    currentProject,
+    setCurrentProject: handleSetCurrentProject,
+    fetchProfileAndProjects,
     lastInvestorResults,
     lastEmployeeResults,
     lastDeepAnalysis,
     setLastInvestorResults,
     setLastEmployeeResults,
     setLastDeepAnalysis,
-    favoriteInvestors,
-    favoriteEmployees,
-    addToFavorites,
-    removeFromFavorites,
-    loadFavorites,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

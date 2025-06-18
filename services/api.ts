@@ -1,11 +1,49 @@
 // Define the base URL for your backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://zerobs-back-final.onrender.com"
 
-interface ChatRequest {
+// --- Request & Response Types ---
+
+// Auth
+export interface LoginRequest {
+  email: string
+  password: string
+}
+export interface LoginResponse {
   message: string
+  token: string
+  user: UserProfile
+  error?: string
 }
 
-// Updated types based on your backend response types
+// User & Project
+export interface UserProfile {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  subscription_plan: "free" | "growth" | "pro"
+  credits: number
+  created_at: string
+}
+export interface Project {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  created_at: string
+}
+export interface ProfileResponse {
+  user: UserProfile
+  projects: Project[]
+}
+
+// Chat
+export interface ChatRequest {
+  message: string
+  project_id: string
+}
+
+// Generic search result types from previous version
 export interface InvestorResult {
   id: string
   Company_Name: string
@@ -19,175 +57,103 @@ export interface InvestorResult {
   Company_Website?: string
   Score?: string
 }
-
 export interface EmployeeResult {
   id: string
   fullName: string
   headline: string
   current_job_title: string
-  current_company_name?: string // Added for grouping
+  current_company_name?: string
   location: string
   linkedinUrl: string
   email: string
   profilePic?: string
 }
 
+// This should be updated to reflect the 60-bot system's potential responses
 export type ChatResponseType =
-  | {
-      type: "investor_results_normal"
-      search_results: {
-        results: InvestorResult[]
-      }
-    }
-  | {
-      type: "investor_results_deep"
-      search_results: {
-        results: InvestorResult[]
-        deep_analysis: string
-      }
-    }
+  | { type: "investor_results_normal"; search_results: { results: InvestorResult[] } }
+  | { type: "investor_results_deep"; search_results: { results: InvestorResult[]; deep_analysis: string } }
   | {
       type: "employee_results"
-      search_results: {
-        employees: EmployeeResult[]
-        employees_by_fund?: Record<string, EmployeeResult[]>
-      }
+      search_results: { employees: EmployeeResult[]; employees_by_fund?: Record<string, EmployeeResult[]> }
     }
   | { type: "text_response"; content: string }
+  | { type: "document_generated"; document_id: string; document_title: string; message: string }
   | { type: "error"; content: string }
 
-// Add after existing imports
-export interface GenerateTemplateRequest {
-  target_entity_id: string
-  target_entity_type: "investor" | "employee"
-  platform: "email" | "linkedin"
-  instructions: string
-  // Add project_id if your backend needs it for context
-  // project_id?: string;
-}
+// --- API Helper ---
 
-export interface GenerateTemplateResponse {
-  template: string
-}
-
-// Helper function to handle API requests with better error handling
 async function fetchApi(endpoint: string, options: RequestInit = {}) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null
+  const headers = new Headers(options.headers || {})
+  headers.set("Content-Type", "application/json")
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`)
+  }
+
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-      credentials: "include",
+      headers,
     })
 
     if (!response.ok) {
       let errorMessage = `API request failed with status ${response.status}`
       try {
-        const errorData = await response.text()
-        try {
-          const jsonError = JSON.parse(errorData)
-          errorMessage = jsonError.message || jsonError.detail || jsonError.error || errorMessage
-        } catch {
-          errorMessage = errorData || errorMessage
-        }
+        const errorData = await response.json()
+        errorMessage = errorData.error || errorData.message || errorMessage
       } catch (e) {
-        console.error(`Failed to read error response from ${endpoint}:`, e)
+        // Response was not JSON
       }
       throw new Error(errorMessage)
     }
 
+    // Handle empty response body
     const responseText = await response.text()
-    if (!responseText) {
-      return {}
-    }
-    try {
-      return JSON.parse(responseText)
-    } catch (e) {
-      return { message: responseText }
-    }
+    return responseText ? JSON.parse(responseText) : {}
   } catch (error) {
     console.error(`API request to ${endpoint} failed:`, error)
     throw error
   }
 }
 
+// --- API Methods ---
+
 export const api = {
-  /**
-   * The single entry point for all conversational searches and actions.
-   */
+  // Auth
+  async login(data: LoginRequest): Promise<LoginResponse> {
+    return fetchApi("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  },
+
+  // User & Projects
+  async getProfile(): Promise<ProfileResponse> {
+    // This endpoint should be created on the backend to return user + projects
+    // For now, we simulate it by calling two endpoints.
+    // A better backend would have a single `/profile` endpoint.
+    const user = await fetchApi("/user/profile")
+    // Assuming a /projects endpoint exists, which is a reasonable expectation.
+    // If not, this part needs to be adapted.
+    const projects = await fetchApi("/projects") // Assuming this endpoint returns Project[]
+    return { user, projects }
+  },
+
+  async getCreditBalance(): Promise<{ credits: number }> {
+    return fetchApi("/credits/balance")
+  },
+
+  // Main Chat
   async chat(request: ChatRequest): Promise<ChatResponseType> {
-    return fetchApi("/chat", {
+    // The backend route from app.py is /chat/bot
+    // It is not project-scoped, so we send project_id in the body.
+    return fetchApi("/chat/bot", {
       method: "POST",
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        message: request.message,
+        context: { project_id: request.project_id }, // Sending project_id in context
+      }),
     })
-  },
-
-  // NOTE: All other direct API calls for search have been removed as per user request.
-  // The app should now use the chat() method for all search-related functionality.
-  // Sentiment and save/get actions remain for now for specific UI interactions (like/dislike, favorites page).
-
-  async getSavedInvestors(): Promise<any[]> {
-    try {
-      const result = await fetchApi("/saved/investors")
-      return Array.isArray(result) ? result : []
-    } catch (error) {
-      console.error("Failed to get saved investors:", error)
-      return []
-    }
-  },
-
-  async updateInvestorSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
-    return fetchApi("/sentiment", {
-      method: "POST",
-      body: JSON.stringify({ entity_id: entityId, entity_type: "investor", sentiment }),
-    })
-  },
-
-  async getSavedEmployees(): Promise<any[]> {
-    try {
-      const result = await fetchApi("/saved/employees")
-      return Array.isArray(result) ? result : []
-    } catch (error) {
-      console.error("Failed to get saved employees:", error)
-      return []
-    }
-  },
-
-  async updateEmployeeSentiment(entityId: string, sentiment: "like" | "dislike"): Promise<{ message: string }> {
-    return fetchApi("/sentiment", {
-      method: "POST",
-      body: JSON.stringify({ entity_id: entityId, entity_type: "employee", sentiment }),
-    })
-  },
-
-  // Add this new method to the api object
-  async generateTemplate(data: GenerateTemplateRequest): Promise<GenerateTemplateResponse> {
-    // Placeholder: In a real scenario, this would call your backend.
-    // For now, we'll simulate a response.
-    console.log("Generating template with data:", data)
-    await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network delay
-
-    let simulatedTemplate = ""
-    if (data.platform === "email") {
-      simulatedTemplate = `Subject: Introduction and Potential Synergies - [Your Startup] & [Target Name]\n\nDear [Target Contact Person],\n\nMy name is [Your Name], and I'm the founder of [Your Startup], a company revolutionizing [Your Industry] by [Your Unique Value Proposition].\n\nI came across your profile/work at [Target Name/Company] and was particularly impressed by [Specific Compliment/Connection Point related to instructions: ${data.instructions}].\n\nGiven your focus on [Target's Focus Area], I believe there could be a strong alignment with what we're building at [Your Startup]. We are currently seeking [Funding Stage/Partnership Type] and would be thrilled to explore potential synergies.\n\nWould you be open to a brief 15-minute call next week to discuss this further?\n\nBest regards,\n[Your Name]\n[Your Title]\n[Your Startup Website]`
-    } else {
-      // LinkedIn
-      simulatedTemplate = `Hi [Target Contact Person],\n\nI'm [Your Name], founder of [Your Startup] ([Your Startup Website]), where we're [Your Unique Value Proposition in brief].\n\nI was impressed by your work in [Specific Compliment/Connection Point based on instructions: ${data.instructions}] at [Target Name/Company] and see a potential overlap with our mission.\n\nWe're looking for [Funding Stage/Partnership Type] and I believe a conversation could be mutually beneficial. Are you open to connecting and a brief chat?\n\nThanks,\n[Your Name]`
-    }
-
-    // Replace placeholders based on entity type (this is a simplified example)
-    // In a real backend, you'd fetch entity details using target_entity_id
-    const entityName = data.target_entity_type === "investor" ? "Investor X" : "Employee Y"
-    simulatedTemplate = simulatedTemplate.replace(/\[Target Name\]/g, entityName)
-    simulatedTemplate = simulatedTemplate.replace(/\[Target Contact Person\]/g, "Selected Contact")
-
-    return { template: simulatedTemplate }
-    // Actual backend call would be:
-    // return fetchApi("/generate/template", { // Ensure this endpoint exists on your backend
-    //   method: "POST",
-    //   body: JSON.stringify(data),
-    // });
   },
 }

@@ -2,69 +2,29 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import {
   MessageSquare,
-  Star,
-  Users,
-  Send,
   FileText,
-  UserCircle2,
+  BrainCircuit,
+  Send,
+  Coins,
   Plus,
   Menu,
   Settings,
   HelpCircle,
-  Activity,
   ChevronsLeft,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-const mainRoutes = [
-  // {
-  //   label: "Chat", // This will be handled by "New Chat" and recent chats
-  //   icon: MessageSquare,
-  //   href: "/",
-  // },
-  {
-    label: "Favourites",
-    icon: Star,
-    href: "/favourites",
-  },
-  {
-    label: "Investors",
-    icon: Users,
-    href: "/investors",
-  },
-  {
-    label: "Employees",
-    icon: UserCircle2,
-    href: "/employees",
-  },
-  {
-    label: "Templates",
-    icon: FileText,
-    href: "/templates",
-  },
-  {
-    label: "Outreach",
-    icon: Send,
-    href: "/outreach",
-  },
-]
-
 const bottomRoutes = [
   {
     label: "Help",
     icon: HelpCircle,
     href: "/help", // Placeholder href
-  },
-  {
-    label: "Activity",
-    icon: Activity,
-    href: "/activity", // Placeholder href
   },
   {
     label: "Settings",
@@ -78,6 +38,32 @@ const recentChats: Array<{ id: string; name: string }> = []
 export default function NavigationSidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const mainRoutes = useMemo(
+    () => [
+      {
+        label: "Documents",
+        icon: FileText,
+        href: "/documents",
+      },
+      {
+        label: "Memory",
+        icon: BrainCircuit,
+        href: "/memory",
+      },
+      {
+        label: "Outreach",
+        icon: Send,
+        href: "/outreach",
+      },
+      {
+        label: "Credits & Plan",
+        icon: Coins,
+        href: "/credits",
+      },
+    ],
+    [],
+  )
 
   return (
     <TooltipProvider delayDuration={0}>
