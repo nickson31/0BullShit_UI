@@ -11,11 +11,14 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { api } from "@/services/api"
 import { Loader2 } from "lucide-react"
+import { FcGoogle } from "react-icons/fc"
+import Link from "next/link"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -43,6 +46,37 @@ export default function LoginPage() {
     }
   }
 
+  const handleGoogleLogin = async () => {
+    setIsLoadingGoogle(true)
+    toast({
+      title: "Google Sign-In",
+      description: "Google Sign-In is not yet implemented. Please use email/password.",
+      variant: "default",
+    })
+    // TODO: Implement Google OAuth flow
+    // 1. Use a library like '@react-oauth/google' to get an ID token.
+    // 2. Send the ID token to your backend's /auth/google endpoint.
+    // Example:
+    // try {
+    //   const googleResponse = await api.googleLogin({ token: googleIdToken });
+    //   if (googleResponse.token) {
+    //     localStorage.setItem("authToken", googleResponse.token);
+    //     toast({ title: "Google Login Successful" });
+    //     router.push("/");
+    //     router.refresh();
+    //   } else {
+    //     throw new Error(googleResponse.error || "Google login failed");
+    //   }
+    // } catch (error) {
+    //   toast({
+    //     title: "Google Login Failed",
+    //     description: (error as Error).message,
+    //     variant: "destructive",
+    //   });
+    // }
+    setIsLoadingGoogle(false)
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-950">
       <Card className="w-full max-w-sm">
@@ -52,6 +86,24 @@ export default function LoginPage() {
             <CardDescription>Enter your email below to login to your account.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <Button variant="outline" type="button" onClick={handleGoogleLogin} disabled={isLoading}>
+                {isLoadingGoogle ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FcGoogle className="mr-2 h-4 w-4" />
+                )}
+                Sign in with Google
+              </Button>
+            </div>
+            <div className="relative my-2">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -74,11 +126,17 @@ export default function LoginPage() {
               />
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Sign in
             </Button>
+            <div className="text-center text-sm">
+              Don&apos;t have an account?{" "}
+              <Link href="/register" className="underline">
+                Sign up
+              </Link>
+            </div>
           </CardFooter>
         </form>
       </Card>

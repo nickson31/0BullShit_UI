@@ -13,6 +13,7 @@ export interface LoginResponse {
   token: string
   user: UserProfile
   error?: string
+  success?: boolean // Added for consistency with backend responses
 }
 
 // User & Project
@@ -81,6 +82,26 @@ export type ChatResponseType =
   | { type: "document_generated"; document_id: string; document_title: string; message: string }
   | { type: "error"; content: string }
 
+// Define these interfaces based on your backend
+export interface RegisterRequest {
+  email: string
+  password: string
+  first_name: string // Changed from firstName to match backend
+  last_name: string // Changed from lastName to match backend
+}
+
+// Assuming registration might return a similar response to login, or just a success message
+export interface RegisterResponse {
+  message: string
+  token?: string // If backend logs in user directly after registration
+  user_id?: string
+  error?: string
+}
+
+export interface GoogleLoginRequest {
+  token: string // This is the ID token from Google
+}
+
 // --- API Helper ---
 
 async function fetchApi(endpoint: string, options: RequestInit = {}) {
@@ -128,15 +149,24 @@ export const api = {
     })
   },
 
+  async register(data: RegisterRequest): Promise<RegisterResponse> {
+    return fetchApi("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  },
+
+  async googleLogin(data: GoogleLoginRequest): Promise<LoginResponse> {
+    return fetchApi("/auth/google", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  },
+
   // User & Projects
   async getProfile(): Promise<ProfileResponse> {
-    // This endpoint should be created on the backend to return user + projects
-    // For now, we simulate it by calling two endpoints.
-    // A better backend would have a single `/profile` endpoint.
     const user = await fetchApi("/user/profile")
-    // Assuming a /projects endpoint exists, which is a reasonable expectation.
-    // If not, this part needs to be adapted.
-    const projects = await fetchApi("/projects") // Assuming this endpoint returns Project[]
+    const projects = await fetchApi("/projects")
     return { user, projects }
   },
 
@@ -152,7 +182,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({
         message: request.message,
-        context: { project_id: request.project_id }, // Sending project_id in context
+        project_id: request.project_id, // Sending project_id directly as per backend
       }),
     })
   },
