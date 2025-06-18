@@ -10,8 +10,8 @@ export interface LoginRequest {
 }
 export interface LoginResponse {
   message: string
-  token: string
-  user: UserProfile
+  token?: string // Make token optional as it might not be present on error
+  user?: UserProfile // Make user optional as it might not be present on error
   error?: string
   success?: boolean // Added for consistency with backend responses
 }
@@ -124,7 +124,10 @@ async function fetchApi(endpoint: string, options: RequestInit = {}) {
         const errorData = await response.json()
         errorMessage = errorData.error || errorData.message || errorMessage
       } catch (e) {
-        // Response was not JSON
+        // Response was not JSON, or JSON parsing failed
+        console.warn(
+          `API response for ${endpoint} was not JSON or empty for status ${response.status}. Raw text: ${await response.text()}`,
+        )
       }
       throw new Error(errorMessage)
     }

@@ -27,15 +27,19 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       const response = await api.login({ email, password })
+      console.log("Login API Response:", response) // Log the full response
+
       if (response.token) {
         localStorage.setItem("authToken", response.token)
         toast({ title: "Login Successful" })
         router.push("/")
         router.refresh() // Ensures layout re-renders with new auth state
       } else {
-        throw new Error(response.error || "Login failed")
+        // If no token, it's a failure. Use response.message or response.error.
+        throw new Error(response.message || response.error || "Login failed: Unknown reason.")
       }
     } catch (error) {
+      console.error("Login Error:", error) // Log the error object
       toast({
         title: "Login Failed",
         description: (error as Error).message,
