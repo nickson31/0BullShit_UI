@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Loader2, Eye, EyeOff } from "lucide-react"
 import { FcGoogle } from "react-icons/fc"
 import { api } from "@/services/api" // Import the api service
+import { useGoogleLogin } from "@react-oauth/google" // Added import
 
 // Define password validation criteria (mirroring backend if possible)
 const passwordRequirements = [
@@ -94,17 +95,45 @@ export default function RegisterPage() {
     }
   }
 
-  const handleGoogleLogin = async () => {
-    setIsLoadingGoogle(true)
-    toast({
-      title: "Google Sign-Up",
-      description: "Google Sign-Up is not yet implemented. Please use manual registration.",
-    })
-    // TODO: Implement Google OAuth flow for registration
-    // Similar to login, but might involve checking if user exists first
-    // or backend handles new Google user creation via /auth/google
-    setIsLoadingGoogle(false)
-  }
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setIsLoadingGoogle(true)
+      try {
+        // Send the access token to your backend. Your backend should handle
+        // whether this is a new user registration or an existing user login.
+        const response = await api.googleLogin({ token: tokenResponse.access_token })
+        console.log("Google Sign-up/Login API Response:", response)
+
+        if (response.token) {
+          localStorage.setItem("authToken", response.token)
+          toast({ title: "Google Sign-up/Login Successful", description: "Welcome to 0BullShit!" })
+          router.push("/")
+          router.refresh()
+        } else {
+          throw new Error(response.message || response.error || "Google sign-up/login failed: Unknown reason.")
+        }
+      } catch (error) {
+        console.error("Google Sign-up/Login Error:", error)
+        toast({
+          title: "Google Sign-up/Login Failed",
+          description: (error as Error).message,
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingGoogle(false)
+      }
+    },
+    onError: (errorResponse) => {
+      console.error("Google OAuth Error:", errorResponse)
+      toast({
+        title: "Google Sign-Up Failed",
+        description: errorResponse.error_description || "Could not complete Google sign-up.",
+        variant: "destructive",
+      })
+      setIsLoadingGoogle(false)
+    },
+    flow: "implicit", // Use 'implicit' for client-side flow to get access_token
+  })
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-950 py-12">
@@ -119,7 +148,7 @@ export default function RegisterPage() {
               <Button
                 variant="outline"
                 type="button"
-                onClick={handleGoogleLogin}
+                onClick={() => googleLogin()}
                 disabled={isLoading || isLoadingGoogle}
               >
                 {isLoadingGoogle ? (

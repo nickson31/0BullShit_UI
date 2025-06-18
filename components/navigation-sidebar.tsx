@@ -130,7 +130,7 @@ export default function NavigationSidebar() {
                     )}
                     asChild
                   >
-                    <Link href={`/chat/${chat.id}`}>
+                    <Link href={`/chat/${chat.id}`} prefetch={false}>
                       {" "}
                       {/* Placeholder href */}
                       <MessageSquare className={cn("h-4 w-4", !isCollapsed && "mr-2", isCollapsed && "m-auto")} />
@@ -169,7 +169,7 @@ export default function NavigationSidebar() {
                         )}
                         asChild
                       >
-                        <Link href={route.href}>
+                        <Link href={route.href} prefetch={false}>
                           <route.icon className={cn("h-4 w-4", !isCollapsed && "mr-2", isCollapsed && "m-auto")} />
                           {!isCollapsed && route.label}
                           {isCollapsed && <span className="sr-only">{route.label}</span>}
@@ -202,7 +202,7 @@ export default function NavigationSidebar() {
                     )}
                     asChild
                   >
-                    <Link href={route.href}>
+                    <Link href={route.href} prefetch={false}>
                       <route.icon className={cn("h-4 w-4", !isCollapsed && "mr-2", isCollapsed && "m-auto")} />
                       {!isCollapsed && route.label}
                       {isCollapsed && <span className="sr-only">{route.label}</span>}

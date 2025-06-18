@@ -13,6 +13,7 @@ import { api } from "@/services/api"
 import { Loader2 } from "lucide-react"
 import { FcGoogle } from "react-icons/fc"
 import Link from "next/link"
+import { useGoogleLogin } from "@react-oauth/google" // Added import
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -50,36 +51,44 @@ export default function LoginPage() {
     }
   }
 
-  const handleGoogleLogin = async () => {
-    setIsLoadingGoogle(true)
-    toast({
-      title: "Google Sign-In",
-      description: "Google Sign-In is not yet implemented. Please use email/password.",
-      variant: "default",
-    })
-    // TODO: Implement Google OAuth flow
-    // 1. Use a library like '@react-oauth/google' to get an ID token.
-    // 2. Send the ID token to your backend's /auth/google endpoint.
-    // Example:
-    // try {
-    //   const googleResponse = await api.googleLogin({ token: googleIdToken });
-    //   if (googleResponse.token) {
-    //     localStorage.setItem("authToken", googleResponse.token);
-    //     toast({ title: "Google Login Successful" });
-    //     router.push("/");
-    //     router.refresh();
-    //   } else {
-    //     throw new Error(googleResponse.error || "Google login failed");
-    //   }
-    // } catch (error) {
-    //   toast({
-    //     title: "Google Login Failed",
-    //     description: (error as Error).message,
-    //     variant: "destructive",
-    //   });
-    // }
-    setIsLoadingGoogle(false)
-  }
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setIsLoadingGoogle(true)
+      try {
+        // Send the access token to your backend
+        const response = await api.googleLogin({ token: tokenResponse.access_token })
+        console.log("Google Login API Response:", response)
+
+        if (response.token) {
+          localStorage.setItem("authToken", response.token)
+          toast({ title: "Google Login Successful" })
+          router.push("/")
+          router.refresh()
+        } else {
+          throw new Error(response.message || response.error || "Google login failed: Unknown reason.")
+        }
+      } catch (error) {
+        console.error("Google Login Error:", error)
+        toast({
+          title: "Google Login Failed",
+          description: (error as Error).message,
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoadingGoogle(false)
+      }
+    },
+    onError: (errorResponse) => {
+      console.error("Google OAuth Error:", errorResponse)
+      toast({
+        title: "Google Sign-In Failed",
+        description: errorResponse.error_description || "Could not complete Google sign-in.",
+        variant: "destructive",
+      })
+      setIsLoadingGoogle(false)
+    },
+    flow: "implicit", // Use 'implicit' for client-side flow to get access_token
+  })
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-950">
@@ -91,7 +100,12 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-2">
-              <Button variant="outline" type="button" onClick={handleGoogleLogin} disabled={isLoading}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => googleLogin()}
+                disabled={isLoading || isLoadingGoogle}
+              >
                 {isLoadingGoogle ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -131,7 +145,7 @@ export default function LoginPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || isLoadingGoogle}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Sign in
             </Button>
