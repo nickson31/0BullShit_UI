@@ -5,22 +5,23 @@ import { Users } from "lucide-react"
 import CompactInvestorCard from "@/components/compact-investor-card"
 import { useToast } from "@/components/ui/use-toast"
 import { api } from "@/services/api"
-import { useCallback } from "react"
+import { useCallback, useState } from "react" // Added useState
 
 export default function InvestorsPage() {
   const { lastInvestorResults, favoriteInvestors, addToFavorites, removeFromFavorites } = useApp()
   const { toast } = useToast()
+  const [actionLoadingStates, setActionLoadingStates] = useState<Record<string, boolean>>({}) // Added
 
   const handleInvestorToggleFavorite = useCallback(
     async (investorId: string) => {
-      // setActionLoadingStates((prev) => ({ ...prev, [investorId]: true })) // If you add loading states here
+      setActionLoadingStates((prev) => ({ ...prev, [investorId]: true }))
       const investor =
         lastInvestorResults.find((inv) => inv.id === investorId) ||
         favoriteInvestors.find((inv) => inv.id === investorId)
 
       if (!investor) {
         toast({ title: "Error", description: "Investor not found.", variant: "destructive" })
-        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
         return
       }
 
@@ -39,7 +40,7 @@ export default function InvestorsPage() {
       } catch (error) {
         toast({ title: "Error", description: "Failed to update investor status.", variant: "destructive" })
       } finally {
-        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
       }
     },
     [addToFavorites, removeFromFavorites, toast, lastInvestorResults, favoriteInvestors],
@@ -47,28 +48,30 @@ export default function InvestorsPage() {
 
   const handleInvestorDislikeAction = useCallback(
     async (investorId: string) => {
-      // setActionLoadingStates((prev) => ({ ...prev, [investorId]: true }))
+      setActionLoadingStates((prev) => ({ ...prev, [investorId]: true }))
       const investor =
         lastInvestorResults.find((inv) => inv.id === investorId) ||
         favoriteInvestors.find((inv) => inv.id === investorId)
 
       if (!investor) {
-        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
         return
       }
 
       try {
         await api.updateInvestorSentiment(investorId, "dislike")
-        removeFromFavorites(investorId, "investor")
+        removeFromFavorites(investorId, "investor") // Also remove from favorites if disliked
         toast({ title: "Investor Disliked", description: `${investor.Company_Name} marked as disliked.` })
       } catch (error) {
         toast({ title: "Error", description: "Failed to update investor status.", variant: "destructive" })
       } finally {
-        // setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
+        setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
       }
     },
     [removeFromFavorites, toast, lastInvestorResults, favoriteInvestors],
   )
+
+  // onGenerateTemplate is handled within CompactInvestorCard itself using router.push
 
   return (
     <div className="container py-6">
@@ -84,10 +87,10 @@ export default function InvestorsPage() {
             <CompactInvestorCard
               key={investor.id}
               investor={investor}
-              onToggleFavorite={handleInvestorToggleFavorite} // Updated
-              onDislikeAction={handleInvestorDislikeAction} // Updated
+              onToggleFavorite={handleInvestorToggleFavorite}
+              onDislikeAction={handleInvestorDislikeAction}
               isFavorite={favoriteInvestors.some((fav) => fav.id === investor.id)}
-              isLoading={false} // Add loading state if desired for this page
+              isLoading={actionLoadingStates[investor.id] || false} // Pass loading state
             />
           ))}
         </div>

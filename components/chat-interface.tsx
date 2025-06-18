@@ -8,21 +8,22 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-import CompactInvestorCard from "@/components/compact-investor-card" // New component
+import CompactInvestorCard from "@/components/compact-investor-card"
 import EmployeeFundCard from "@/components/employee-fund-card"
 import DeepAnalysisCard from "@/components/deep-analysis-card"
 import { useToast } from "@/components/ui/use-toast"
 import { useApp } from "@/contexts/AppContext"
 import { api, type ChatResponseType, type EmployeeResult, type InvestorResult } from "@/services/api"
 import { Progress } from "@/components/ui/progress"
+// useRouter is not needed here as cards handle their own navigation for templates
 
 interface Message {
   id: string
-  text?: string | React.ReactNode // For user messages or simple text bot responses
+  text?: string | React.ReactNode
   sender: "user" | "bot"
   timestamp: Date
   rawApiResponse?: ChatResponseType
-  investorResultsForEmployeeSearch?: InvestorResult[] // Store investor results if "Find Employees" is clicked
+  investorResultsForEmployeeSearch?: InvestorResult[]
 }
 
 const initialMessages: Message[] = []
@@ -37,10 +38,9 @@ const loadingMessages = {
     "Analyzing 50,000+ investment funds...",
     "Applying ML compatibility algorithms...",
     "Calculating market timing scores...",
-    "Generating strategic insights...", // Updated
+    "Generating strategic insights...",
   ],
   deep_investor_search: [
-    // Keep existing deep search messages
     "Initiating deep dive analysis...",
     "Analyzing 50,000+ investment funds & portfolio companies...",
     "Applying advanced ML compatibility algorithms...",
@@ -49,7 +49,6 @@ const loadingMessages = {
     "Generating comprehensive insights and strategic recommendations...",
   ],
   employee_search: [
-    // Updated
     "Scanning investment firm networks...",
     "Filtering high-quality contacts (score >44)...",
     "Mapping decision makers...",
@@ -74,18 +73,17 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
     favoriteEmployees,
     addToFavorites,
     removeFromFavorites,
-    lastInvestorResults, // Declare the variable here
+    lastInvestorResults,
   } = useApp()
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
-  const [actionLoadingStates, setActionLoadingStates] = useState<Record<string, boolean>>({}) // For like/dislike on cards
+  const [actionLoadingStates, setActionLoadingStates] = useState<Record<string, boolean>>({})
   const [activeLoadingProcess, setActiveLoadingProcess] = useState<keyof typeof loadingMessages | null>(null)
   const [progressValue, setProgressValue] = useState(0)
   const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const progressAnimationRef = useRef<number | null>(null)
   const progressStartTimeRef = useRef<number | null>(null)
-
-  const [showAllInvestors, setShowAllInvestors] = useState<Record<string, boolean>>({}) // messageId: boolean
+  const [showAllInvestors, setShowAllInvestors] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -97,25 +95,15 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   }, [messages])
 
   const simulateLoadingMessages = useCallback((type: keyof typeof loadingMessages) => {
-    if (loadingIntervalRef.current) {
-      clearInterval(loadingIntervalRef.current)
-    }
-    if (progressAnimationRef.current) {
-      cancelAnimationFrame(progressAnimationRef.current)
-    }
+    if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current)
+    if (progressAnimationRef.current) cancelAnimationFrame(progressAnimationRef.current)
 
     const currentProcessMessages = loadingMessages[type]
-    let baseDuration = 5000 // Default for normal investor search
-    if (type === "deep_investor_search") {
-      baseDuration = 10000
-    } else if (type === "employee_search") {
-      baseDuration = 6500
-    }
-
-    // Add a bit of variability to the duration, e.g., +/- 1 second for deep, +/- 0.5s for others
+    let baseDuration = 5000
+    if (type === "deep_investor_search") baseDuration = 10000
+    else if (type === "employee_search") baseDuration = 6500
     const durationVariance = type === "deep_investor_search" ? Math.random() * 2000 - 1000 : Math.random() * 1000 - 500
-    const duration = Math.max(3000, baseDuration + durationVariance) // Ensure minimum duration
-
+    const duration = Math.max(3000, baseDuration + durationVariance)
     const messageIntervalTime = duration / currentProcessMessages.length
     let currentMessageIndex = 0
 
@@ -129,24 +117,16 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       const elapsed = timestamp - progressStartTimeRef.current
       const calculatedProgress = Math.min((elapsed / duration) * 100, 100)
       setProgressValue(calculatedProgress)
-
-      if (elapsed < duration) {
-        progressAnimationRef.current = requestAnimationFrame(animateProgress)
-      } else {
-        setProgressValue(100) // Ensure it hits 100
-      }
+      if (elapsed < duration) progressAnimationRef.current = requestAnimationFrame(animateProgress)
+      else setProgressValue(100)
     }
-
     progressAnimationRef.current = requestAnimationFrame(animateProgress)
 
     loadingIntervalRef.current = setInterval(() => {
       currentMessageIndex++
-      if (currentMessageIndex < currentProcessMessages.length) {
+      if (currentMessageIndex < currentProcessMessages.length)
         setLoadingMessage(currentProcessMessages[currentMessageIndex])
-      } else {
-        if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current)
-        // Message changing stops, progress animation continues to 100%
-      }
+      else if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current)
     }, messageIntervalTime)
 
     return () => {
@@ -160,7 +140,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       }
       progressStartTimeRef.current = null
     }
-  }, []) // Removed simulateLoadingMessages from its own dependency array
+  }, [])
 
   const handleSendMessage = useCallback(
     async (text?: string, relatedInvestors?: InvestorResult[]) => {
@@ -174,45 +154,37 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, newUserMessage])
-      if (!text) {
-        // Only clear input if it's a direct user message, not programmatic
-        setInputValue("")
-      }
+      if (!text) setInputValue("")
 
-      setIsLoading(true) // General loading flag
-      setLoadingMessage("") // Clear previous specific message
-      setProgressValue(0) // Reset progress
-      setActiveLoadingProcess(null) // Reset specific loading process
+      setIsLoading(true)
+      setLoadingMessage("")
+      setProgressValue(0)
+      setActiveLoadingProcess(null)
 
       const lowerCaseMessage = messageText.toLowerCase()
       let anticipatedProcess: keyof typeof loadingMessages | null = null
-
-      if (lowerCaseMessage.includes("employee") || lowerCaseMessage.includes("empleado") || relatedInvestors) {
+      if (lowerCaseMessage.includes("employee") || lowerCaseMessage.includes("empleado") || relatedInvestors)
         anticipatedProcess = "employee_search"
-      } else if (
+      else if (
         isDeepResearch ||
         lowerCaseMessage.includes("deep research") ||
         lowerCaseMessage.includes("análisis profundo")
-      ) {
+      )
         anticipatedProcess = "deep_investor_search"
-      } else if (
+      else if (
         lowerCaseMessage.includes("investor") ||
         lowerCaseMessage.includes("fund") ||
         lowerCaseMessage.includes("vc") ||
         lowerCaseMessage.includes("inversor") ||
         lowerCaseMessage.includes("fondo")
-      ) {
+      )
         anticipatedProcess = "investor_search"
-      }
 
       let clearLoadingProcessInterval: (() => void) | null = null
-      if (anticipatedProcess) {
-        clearLoadingProcessInterval = simulateLoadingMessages(anticipatedProcess)
-      }
+      if (anticipatedProcess) clearLoadingProcessInterval = simulateLoadingMessages(anticipatedProcess)
 
       try {
         const apiResponse = await api.chat({ message: messageText })
-
         if (apiResponse.type === "investor_results_normal") {
           setLastInvestorResults(apiResponse.search_results.results)
           setLastDeepAnalysis(null)
@@ -222,7 +194,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         } else if (apiResponse.type === "employee_results") {
           setLastEmployeeResults(apiResponse.search_results.employees)
         }
-
         const botMessage: Message = {
           id: (Date.now() + 1).toString(),
           sender: "bot",
@@ -248,10 +219,8 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
           variant: "destructive",
         })
       } finally {
-        if (clearLoadingProcessInterval) {
-          clearLoadingProcessInterval() // This now also clears the animation frame
-        }
-        setActiveLoadingProcess(null) // Ensure specific loading stops
+        if (clearLoadingProcessInterval) clearLoadingProcessInterval()
+        setActiveLoadingProcess(null)
         setLoadingMessage("")
         setProgressValue(0)
         setIsLoading(false)
@@ -275,18 +244,15 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       const investor =
         lastInvestorResults.find((inv) => inv.id === investorId) ||
         favoriteInvestors.find((inv) => inv.id === investorId)
-
       if (!investor) {
         toast({ title: "Error", description: "Investor not found.", variant: "destructive" })
         setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
         return
       }
-
       const currentIsFavorite = favoriteInvestors.some((fav) => fav.id === investorId)
-
       try {
         if (currentIsFavorite) {
-          await api.updateInvestorSentiment(investorId, "dislike") // Or a neutral sentiment
+          await api.updateInvestorSentiment(investorId, "dislike")
           removeFromFavorites(investorId, "investor")
           toast({ title: "Investor Unliked", description: `${investor.Company_Name} removed from favorites.` })
         } else {
@@ -309,13 +275,10 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       const investor =
         lastInvestorResults.find((inv) => inv.id === investorId) ||
         favoriteInvestors.find((inv) => inv.id === investorId)
-
       if (!investor) {
-        // It might have been removed by a toggle already, so don't show error if not found
         setActionLoadingStates((prev) => ({ ...prev, [investorId]: false }))
         return
       }
-
       try {
         await api.updateInvestorSentiment(investorId, "dislike")
         removeFromFavorites(investorId, "investor")
@@ -335,7 +298,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
       const currentIsFavorite = favoriteEmployees.some((fav) => fav.id === employee.id)
       try {
         if (currentIsFavorite) {
-          await api.updateEmployeeSentiment(employee.id, "dislike") // Or neutral
+          await api.updateEmployeeSentiment(employee.id, "dislike")
           removeFromFavorites(employee.id, "employee")
           toast({ title: "Employee Unliked", description: `${employee.fullName} removed from favorites.` })
         } else {
@@ -381,7 +344,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
   const renderBotMessageContent = (message: Message) => {
     const response = message.rawApiResponse
     if (!response) return <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-
     const messageId = message.id
 
     switch (response.type) {
@@ -391,7 +353,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
         const displayedInvestors = showAllInvestors[messageId]
           ? investors
           : investors.slice(0, MAX_INITIAL_INVESTOR_CARDS)
-
         return (
           <div className="space-y-3">
             {response.type === "investor_results_deep" && response.search_results.deep_analysis && (
@@ -405,8 +366,8 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 <CompactInvestorCard
                   key={investor.id}
                   investor={investor}
-                  onToggleFavorite={handleInvestorToggleFavorite} // Updated
-                  onDislikeAction={handleInvestorDislikeAction} // Updated
+                  onToggleFavorite={handleInvestorToggleFavorite}
+                  onDislikeAction={handleInvestorDislikeAction}
                   isFavorite={favoriteInvestors.some((fav) => fav.id === investor.id)}
                   isLoading={actionLoadingStates[investor.id] || false}
                 />
@@ -434,18 +395,15 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
             )}
           </div>
         )
-
       case "employee_results":
         const employeesByFund = response.search_results.employees_by_fund
         const allEmployees = response.search_results.employees
-
         if (
           (!employeesByFund || Object.keys(employeesByFund).length === 0) &&
           (!allEmployees || allEmployees.length === 0)
         ) {
           return <p className="text-sm">No employees found for the specified criteria.</p>
         }
-
         return (
           <div className="space-y-3">
             <p className="text-sm text-slate-700 dark:text-slate-300">Resultados de empleados:</p>
@@ -456,19 +414,17 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                       key={fundName}
                       fundName={fundName}
                       employees={fundEmployees}
-                      onToggleFavorite={handleEmployeeToggleFavorite} // Updated
-                      onDislikeAction={handleEmployeeDislikeAction} // Updated
+                      onToggleFavorite={handleEmployeeToggleFavorite}
+                      onDislikeAction={handleEmployeeDislikeAction}
                       isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
                       loadingStates={actionLoadingStates}
                     />
                   ))
                 : allEmployees && allEmployees.length > 0
-                  ? // Fallback if employees_by_fund is not available, group them by current_company_name
-                    // This is a simplified grouping, ideally backend provides this structure.
-                    Object.entries(
+                  ? Object.entries(
                       allEmployees.reduce(
                         (acc, emp) => {
-                          const company = emp.current_job_title?.split(" at ")[1] || "Unknown Fund" // Basic parsing
+                          const company = emp.current_company_name || "Unknown Fund"
                           if (!acc[company]) acc[company] = []
                           acc[company].push(emp)
                           return acc
@@ -480,8 +436,8 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                         key={fundName}
                         fundName={fundName}
                         employees={fundEmployees}
-                        onToggleFavorite={handleEmployeeToggleFavorite} // Updated
-                        onDislikeAction={handleEmployeeDislikeAction} // Updated
+                        onToggleFavorite={handleEmployeeToggleFavorite}
+                        onDislikeAction={handleEmployeeDislikeAction}
                         isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
                         loadingStates={actionLoadingStates}
                       />
@@ -490,7 +446,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
             </div>
           </div>
         )
-
       case "text_response":
         return <p className="text-sm whitespace-pre-wrap">{response.content}</p>
       case "error":
@@ -503,13 +458,10 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue(suggestion)
-    // Optionally send message directly: handleSendMessage(suggestion);
   }
 
   return (
     <div className="flex flex-col h-full max-w-3xl mx-auto w-full">
-      {" "}
-      {/* Max width for chat content area */}
       {messages.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <h1 className="text-4xl md:text-5xl font-medium mb-4">
@@ -552,8 +504,6 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                     msg.sender === "user"
                       ? "p-3 bg-blue-600 text-white rounded-br-none"
                       : "p-3 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200 dark:border-slate-700",
-                    // Ensure bot message container doesn't try to be overly wide by default
-                    // The internal content (cards) will manage its own width and scrolling.
                     msg.sender === "bot" ? "w-full max-w-xl" : "max-w-[80%]",
                   )}
                 >
@@ -572,7 +522,7 @@ export default function ChatInterface({ projectId }: { projectId: string }) {
                 {msg.sender === "user" && (
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarImage src="/placeholder.svg?width=32&height=32" alt={userName} />
-                    <AvatarFallback>{userName.substring(0, 1).toUpperCase()} </AvatarFallback>
+                    <AvatarFallback>{userName.substring(0, 1).toUpperCase()}</AvatarFallback>
                   </Avatar>
                 )}
               </div>

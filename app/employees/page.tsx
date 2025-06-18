@@ -10,11 +10,11 @@ import { useCallback, useState, useMemo } from "react"
 export default function EmployeesPage() {
   const { lastEmployeeResults, favoriteEmployees, addToFavorites, removeFromFavorites } = useApp()
   const { toast } = useToast()
-  const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
+  const [actionLoadingStates, setActionLoadingStates] = useState<Record<string, boolean>>({}) // Renamed for clarity
 
   const handleEmployeeToggleFavorite = useCallback(
     async (employee: EmployeeResult) => {
-      setLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+      setActionLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
       const currentIsFavorite = favoriteEmployees.some((fav) => fav.id === employee.id)
       try {
         if (currentIsFavorite) {
@@ -29,7 +29,7 @@ export default function EmployeesPage() {
       } catch (error) {
         toast({ title: "Error", description: "Failed to update employee status.", variant: "destructive" })
       } finally {
-        setLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
+        setActionLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
       }
     },
     [addToFavorites, removeFromFavorites, toast, favoriteEmployees],
@@ -37,19 +37,21 @@ export default function EmployeesPage() {
 
   const handleEmployeeDislikeAction = useCallback(
     async (employee: EmployeeResult) => {
-      setLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
+      setActionLoadingStates((prev) => ({ ...prev, [employee.id]: true }))
       try {
         await api.updateEmployeeSentiment(employee.id, "dislike")
-        removeFromFavorites(employee.id, "employee")
+        removeFromFavorites(employee.id, "employee") // Also remove from favorites if disliked
         toast({ title: "Employee Disliked", description: `${employee.fullName} marked as disliked.` })
       } catch (error) {
         toast({ title: "Error", description: "Failed to update employee status.", variant: "destructive" })
       } finally {
-        setLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
+        setActionLoadingStates((prev) => ({ ...prev, [employee.id]: false }))
       }
     },
     [removeFromFavorites, toast],
   )
+
+  // onGenerateTemplate is handled within EmployeeFundCard itself using router.push
 
   const employeesByFund = useMemo(() => {
     if (!lastEmployeeResults) return {}
@@ -79,10 +81,10 @@ export default function EmployeesPage() {
               key={fundName}
               fundName={fundName}
               employees={fundEmployees}
-              onToggleFavorite={handleEmployeeToggleFavorite} // Updated
-              onDislikeAction={handleEmployeeDislikeAction} // Updated
+              onToggleFavorite={handleEmployeeToggleFavorite}
+              onDislikeAction={handleEmployeeDislikeAction}
               isEmployeeInFavorites={(empId) => favoriteEmployees.some((fav) => fav.id === empId)}
-              loadingStates={loadingStates}
+              loadingStates={actionLoadingStates} // Pass loading states
             />
           ))}
         </div>
