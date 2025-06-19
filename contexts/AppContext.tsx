@@ -53,11 +53,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const profileData = await api.getProfile()
+      // Ensure profileData.user and profileData.user.credits are handled safely
       setProfile(profileData.user || null)
-      setCredits(profileData.user?.credits || null)
-      setProjects(profileData.projects)
+      setCredits(profileData.user?.credits ?? null) // Use nullish coalescing for credits
 
-      if (profileData.projects.length > 0) {
+      setProjects(profileData.projects || []) // Ensure projects is an array
+
+      if (profileData.projects && profileData.projects.length > 0) {
         const lastProjectId = localStorage.getItem("lastProjectId")
         const projectToSet = profileData.projects.find((p) => p.id === lastProjectId) || profileData.projects[0]
         setCurrentProject(projectToSet)
