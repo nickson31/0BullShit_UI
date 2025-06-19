@@ -15,6 +15,7 @@ import {
 import { Coins, LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
+import Link from "next/link" // Import Link
 
 export default function UserNav() {
   const { profile, credits, isLoadingProfile } = useApp()
@@ -33,7 +34,7 @@ export default function UserNav() {
       ) : (
         <div className="flex items-center gap-2 rounded-full border bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-sm font-medium">
           <Coins className="h-4 w-4 text-yellow-500" />
-          <span>{credits?.toLocaleString() ?? 0}</span>
+          <span>{credits?.toLocaleString() ?? 0}</span> {/* Mostrar créditos reales */}
         </div>
       )}
 
@@ -65,9 +66,15 @@ export default function UserNav() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem>Billing</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/profile">Profile</Link> {/* Link a la nueva página de perfil */}
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings">Settings</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/credits">Billing</Link> {/* Billing es la página de créditos */}
+            </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout}>

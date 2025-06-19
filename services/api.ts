@@ -44,6 +44,41 @@ export interface ChatRequest {
   project_id: string
 }
 
+// Project Creation
+export interface CreateProjectRequest {
+  name: string
+  description?: string // Optional description
+}
+
+// Investor Search
+export interface InvestorSearchRequest {
+  query: string
+  project_id: string
+  filters?: {
+    locations?: string[]
+    stages?: string[]
+    categories?: string[]
+  }
+  page?: number
+  per_page?: number
+}
+
+export interface InvestorSearchResponse {
+  results: InvestorResult[]
+  total_count?: number // Assuming backend provides total count for pagination
+  total_pages?: number // Assuming backend provides total pages for pagination
+}
+
+// Document Management
+export interface Document {
+  id: string
+  name: string
+  type: string
+  size: string
+  uploadedAt: string // Or a proper date string/object
+  url?: string // URL to view/download the document
+}
+
 // Generic search result types from previous version
 export interface InvestorResult {
   id: string
@@ -81,6 +116,7 @@ export type ChatResponseType =
   | { type: "text_response"; content: string }
   | { type: "document_generated"; document_id: string; document_title: string; message: string }
   | { type: "error"; content: string }
+  | { bot: string; response: string; type: string; search_results?: any } // Added for the new backend response structure
 
 // Define these interfaces based on your backend
 export interface RegisterRequest {
@@ -177,16 +213,122 @@ export const api = {
     return fetchApi("/credits/balance")
   },
 
+  async createProject(data: CreateProjectRequest): Promise<Project> {
+    return fetchApi("/projects", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  },
+
   // Main Chat
   async chat(request: ChatRequest): Promise<ChatResponseType> {
-    // The backend route from app.py is /chat/bot
-    // It is not project-scoped, so we send project_id in the body.
     return fetchApi("/chat/bot", {
       method: "POST",
       body: JSON.stringify({
         message: request.message,
-        project_id: request.project_id, // Sending project_id directly as per backend
+        project_id: request.project_id,
       }),
     })
+  },
+
+  // Investor Search
+  async searchInvestors(request: InvestorSearchRequest): Promise<InvestorSearchResponse> {
+    // This endpoint is POST /search/investors
+    // The backend expects query, project_id, filters, page, per_page
+    return fetchApi("/search/investors", {
+      method: "POST",
+      body: JSON.stringify(request),
+    })
+  },
+
+  // Document Management
+  async getDocuments(): Promise<Document[]> {
+    // This endpoint is GET /documents
+    // Mock data if backend doesn't return real documents or is not implemented
+    try {
+      const response = await fetchApi("/documents", { method: "GET" })
+      return response.documents || [] // Assuming backend returns { documents: [...] }
+    } catch (error) {
+      console.warn("Failed to fetch documents from backend, returning mock data.", error)
+      return [
+        {
+          id: "1",
+          name: "Investor Pitch Deck v3.pdf",
+          type: "PDF",
+          size: "2.5 MB",
+          uploadedAt: "2024-05-10",
+          url: "#",
+        },
+        {
+          id: "2",
+          name: "Market Analysis Report.docx",
+          type: "DOCX",
+          size: "1.1 MB",
+          uploadedAt: "2024-05-08",
+          url: "#",
+        },
+        {
+          id: "3",
+          name: "Financial Projections.xlsx",
+          type: "XLSX",
+          size: "0.8 MB",
+          uploadedAt: "2024-05-05",
+          url: "#",
+        },
+      ]
+    }
+  },
+
+  async uploadDocument(file: File, projectId: string): Promise<Document> {
+    // This endpoint is not explicitly provided, so we'll simulate it.
+    // In a real scenario, you'd use FormData and a POST request.
+    console.log(`Simulating upload of file: ${file.name} for project: ${projectId}`)
+    await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network delay
+    const mockDoc: Document = {
+      id: `doc-${Date.now()}`,
+      name: file.name,
+      type: file.type.split("/")[1]?.toUpperCase() || "FILE",
+      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+      uploadedAt: new Date().toISOString().split("T")[0],
+      url: "#", // Placeholder URL
+    }
+    return mockDoc
+  },
+
+  // Placeholder for other API calls not explicitly provided by backend
+  async updateProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile> {
+    console.log(`Simulating profile update for user ${userId}:`, data)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    return { ...data, id: userId } as UserProfile // Return updated mock profile
+  },
+  async getMemoryData(projectId: string): Promise<any> {
+    console.log(`Simulating fetching memory data for project: ${projectId}`)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    return {
+      totalEntries: 125,
+      lastUpdated: "2024-06-18 10:30 AM",
+      memoryUsage: "75%",
+      connectedSources: 5,
+    }
+  },
+  async getOutreachCampaigns(): Promise<any[]> {
+    console.log("Simulating fetching outreach campaigns")
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    return [] // Return mock data from page component
+  },
+  async getOutreachTemplates(): Promise<any[]> {
+    console.log("Simulating fetching outreach templates")
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    return [] // Return mock data from page component
+  },
+  async getCreditHistory(): Promise<any[]> {
+    console.log("Simulating fetching credit history")
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    return [] // Return mock data from page component
+  },
+  async getSubscriptionPlans(): Promise<any[]> {
+    console.log("Simulating fetching subscription plans")
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    return [] // Return mock data from page component
   },
 }

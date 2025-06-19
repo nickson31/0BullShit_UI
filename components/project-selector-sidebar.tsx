@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { useApp } from "@/contexts/AppContext"
 import { useState } from "react"
+import CreateProjectModal from "./create-project-modal" // Import the new modal
 
 export default function ProjectSelectorSidebar() {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false) // State for modal
   const { projects, currentProject, setCurrentProject, isLoadingProfile } = useApp()
 
   return (
@@ -88,6 +90,7 @@ export default function ProjectSelectorSidebar() {
                     "w-full h-10 rounded-md flex items-center text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 hover:text-slate-800 dark:hover:text-slate-100",
                     isExpanded ? "justify-start px-3" : "justify-center p-0 aspect-square",
                   )}
+                  onClick={() => setIsModalOpen(true)} // Open modal on click
                 >
                   <Plus className={cn("h-5 w-5", isExpanded ? "mr-2" : "")} />
                   {isExpanded && <span className="text-sm font-medium">New Project</span>}
@@ -100,6 +103,7 @@ export default function ProjectSelectorSidebar() {
         </ScrollArea>
         <div className={cn("mt-auto border-t p-2 dark:border-slate-700")} />
       </div>
+      <CreateProjectModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} /> {/* Render the modal */}
     </TooltipProvider>
   )
 }

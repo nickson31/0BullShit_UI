@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
-import { SendHorizontal, Sparkles, Mic } from "lucide-react"
+import { SendHorizontal, Sparkles, Mic, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useApp } from "@/contexts/AppContext"
 import { api, type ChatResponseType, type InvestorResult } from "@/services/api"
 import TextareaAutosize from "react-textarea-autosize"
+import cn from "classnames"
 // useRouter is not needed here as cards handle their own navigation for templates
 
 interface Message {
@@ -34,7 +35,7 @@ export default function ChatInterface() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const {
-    profile,
+    profile, // Usar profile para el nombre del usuario
     currentProject,
     setLastInvestorResults,
     setLastEmployeeResults,
@@ -110,7 +111,8 @@ export default function ChatInterface() {
   }, [])
 
   const handleSendMessage = useCallback(
-    async (text?: string, relatedInvestors?: InvestorResult[]) => {
+    async (text?: string) => {
+      // Removed relatedInvestors as it's not used
       const messageText = text || inputValue
       if (messageText.trim() === "" || isLoading) return
 
@@ -130,7 +132,7 @@ export default function ChatInterface() {
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, newUserMessage])
-      if (!text) setInputValue("")
+      if (!text) setInputValue("") // Clear input only if it's not a suggestion chip
 
       setIsLoading(true)
       setLoadingMessage("")
@@ -142,18 +144,14 @@ export default function ChatInterface() {
       try {
         const apiResponse = await api.chat({ message: messageText, project_id: currentProject.id })
 
-        // The new backend response doesn't seem to follow the old ChatResponseType exactly.
-        // It has a `bot` and `response` field. We will adapt to this.
-        // Let's assume the response text is in `response.response` and bot name in `response.bot`
-        const botName = apiResponse.bot || "AI Assistant"
+        const botName = apiResponse.bot || "AI Assistant" // Assuming bot name might be in apiResponse.bot
         if (botName) {
           clearLoadingProcessInterval = simulateLoadingMessages(botName)
         }
 
-        // Here we need to parse apiResponse.response to see if it contains structured data
-        // This is a simplification. A real implementation would have a more robust parsing logic.
         const responseContent = apiResponse.response || "No response from bot."
 
+        // Update state based on response type
         if (apiResponse.type === "investor_results_normal") {
           setLastInvestorResults(apiResponse.search_results.results)
           setLastDeepAnalysis(null)
@@ -163,11 +161,22 @@ export default function ChatInterface() {
         } else if (apiResponse.type === "employee_results") {
           setLastEmployeeResults(apiResponse.search_results.employees)
         }
+        // For text_response, document_generated, or error, the content is directly in apiResponse.content or apiResponse.error
+        const botMessageText =
+          apiResponse.type === "text_response"
+            ? apiResponse.content
+            : apiResponse.type === "document_generated"
+              ? apiResponse.message
+              : apiResponse.type === "error"
+                ? apiResponse.content
+                : "Unknown response type or content."
+
         const botMessage: Message = {
           id: (Date.now() + 1).toString(),
           sender: "bot",
           timestamp: new Date(),
-          text: responseContent,
+          text: botMessageText, // Use the parsed bot message text
+          rawApiResponse: apiResponse, // Keep raw response for detailed rendering if needed
           investorResultsForEmployeeSearch:
             apiResponse.type === "investor_results_normal" || apiResponse.type === "investor_results_deep"
               ? apiResponse.search_results.results
@@ -208,21 +217,16 @@ export default function ChatInterface() {
   )
 
   const renderBotMessageContent = (message: Message) => {
-    const response = message.rawApiResponse
-    if (!response) return <p className="text-sm">No response from bot.</p>
+    // Now that message.text is already processed, we can just render it.
+    // If you need to render specific UI for investor/employee results,
+    // you would do it here based on message.rawApiResponse.type
+    return <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+  }
 
-    switch (response.type) {
-      case "investor_results_normal":
-      case "investor_results_deep":
-        return <p className="text-sm">Investor results would be displayed here.</p>
-      case "employee_results":
-        return <p className="text-sm">Employee results would be displayed here.</p>
-      case "text_response":
-        return <p className="text-sm whitespace-pre-wrap">{response.content}</p>
-      case "error":
-        return <p className="text-sm text-red-500">{response.error}</p>
-      default:
-        return <p className="text-sm">Unknown response type.</p>
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
     }
   }
 
@@ -232,49 +236,87 @@ export default function ChatInterface() {
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
           <h1 className="text-4xl md:text-5xl font-medium mb-4">
             <span className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 bg-clip-text text-transparent">
-              Hello, {profile?.first_name || "User"}
+              Hello, {profile?.first_name || "User"} {/* Usar profile.first_name */}
             </span>
           </h1>
           <p className="text-slate-600 dark:text-slate-400 mb-10 text-lg">How can I help you today?</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {suggestionChipsData.map((chip, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                className="rounded-full px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                onClick={() => handleSendMessage(chip.text)}
+                disabled={isLoading}
+              >
+                <chip.icon className="mr-2 h-4 w-4" />
+                {chip.text}
+              </Button>
+            ))}
+          </div>
         </div>
       ) : (
         <ScrollArea ref={scrollAreaRef} className="flex-1">
           {messages.map((msg) => (
-            <div key={msg.id} className="flex items-end justify-end mb-4">
-              <div className="flex flex-col space-y-2 max-w-md mx-6">
+            <div key={msg.id} className={cn("flex mb-4", msg.sender === "user" ? "justify-end" : "justify-start")}>
+              <div className="flex items-end" style={{ flexDirection: msg.sender === "user" ? "row-reverse" : "row" }}>
                 {msg.sender === "bot" && (
-                  <div className="flex items-center">
-                    <Avatar className="h-8 w-8 flex-shrink-0">
-                      <AvatarImage src="/placeholder.svg?width=32&height=32" alt="Bot" />
-                      <AvatarFallback>B</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col space-y-1">
-                      <div className="text-xs text-slate-400 dark:text-slate-500">
-                        {msg.timestamp.toLocaleTimeString()}
-                      </div>
-                      <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
-                        {renderBotMessageContent(msg)}
-                      </div>
-                    </div>
-                  </div>
+                  <Avatar className="h-8 w-8 flex-shrink-0 mr-2">
+                    <AvatarImage src="/placeholder.svg?width=32&height=32" alt="Bot" />
+                    <AvatarFallback>B</AvatarFallback>
+                  </Avatar>
                 )}
-                {msg.sender === "user" && (
-                  <div className="flex items-center">
-                    <div className="flex flex-col space-y-1">
-                      <div className="text-xs text-slate-400 dark:text-slate-500">
-                        {msg.timestamp.toLocaleTimeString()}
-                      </div>
-                      <div className="p-4 bg-blue-100 dark:bg-blue-800 rounded-lg w-fit">{msg.text}</div>
-                    </div>
-                    <Avatar className="h-8 w-8 flex-shrink-0">
-                      <AvatarImage src="/placeholder.svg?width=32&height=32" alt={profile?.first_name} />
-                      <AvatarFallback>{profile?.first_name?.[0]?.toUpperCase()}</AvatarFallback>
-                    </Avatar>
+                <div className="flex flex-col space-y-1 max-w-md">
+                  <div
+                    className={cn(
+                      "text-xs text-slate-400 dark:text-slate-500",
+                      msg.sender === "user" ? "text-right" : "text-left",
+                    )}
+                  >
+                    {msg.timestamp.toLocaleTimeString()}
                   </div>
+                  <div
+                    className={cn(
+                      "p-4 rounded-lg w-fit",
+                      msg.sender === "user"
+                        ? "bg-blue-100 dark:bg-blue-800 ml-auto"
+                        : "bg-slate-100 dark:bg-slate-800 mr-auto",
+                    )}
+                  >
+                    {renderBotMessageContent(msg)}
+                  </div>
+                </div>
+                {msg.sender === "user" && (
+                  <Avatar className="h-8 w-8 flex-shrink-0 ml-2">
+                    <AvatarImage src="/placeholder.svg?width=32&height=32" alt={profile?.first_name} />
+                    <AvatarFallback>{profile?.first_name?.[0]?.toUpperCase()}</AvatarFallback>
+                  </Avatar>
                 )}
               </div>
             </div>
           ))}
+          {isLoading && (
+            <div className="flex justify-start mb-4">
+              <div className="flex items-end">
+                <Avatar className="h-8 w-8 flex-shrink-0 mr-2">
+                  <AvatarImage src="/placeholder.svg?width=32&height=32" alt="Bot" />
+                  <AvatarFallback>B</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col space-y-1 max-w-md">
+                  <div className="text-xs text-slate-400 dark:text-slate-500">{new Date().toLocaleTimeString()}</div>
+                  <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+                    <div className="flex items-center">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span className="text-sm">{loadingMessage}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1 dark:bg-gray-700 mt-2">
+                      <div className="bg-blue-600 h-1 rounded-full" style={{ width: `${progressValue}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </ScrollArea>
       )}
       <div className="border-t border-slate-200 dark:border-slate-700 px-6 py-4 flex space-x-2">
@@ -283,11 +325,23 @@ export default function ChatInterface() {
           placeholder="Type your message here..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown} // Add keydown handler
+          disabled={isLoading}
         />
-        <Button variant="default" size="icon" onClick={() => handleSendMessage()}>
+        <Button
+          variant="default"
+          size="icon"
+          onClick={() => handleSendMessage()}
+          disabled={isLoading || inputValue.trim() === ""}
+        >
           <SendHorizontal className="h-4 w-4" />
         </Button>
-        <Button variant="default" size="icon" onClick={() => console.log("Feature coming soon!")}>
+        <Button
+          variant="default"
+          size="icon"
+          onClick={() => toast({ title: "Feature coming soon!" })}
+          disabled={isLoading}
+        >
           <Mic className="h-4 w-4" />
         </Button>
       </div>

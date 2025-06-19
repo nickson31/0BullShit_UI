@@ -24,6 +24,11 @@ interface AppContextType {
   setLastInvestorResults: (results: InvestorResult[]) => void
   setLastEmployeeResults: (results: EmployeeResult[]) => void
   setLastDeepAnalysis: (analysis: string | null) => void
+
+  // Documents (added for documents page)
+  documents: any[] // TODO: Define a proper Document type
+  fetchDocuments: () => Promise<void>
+  addDocument: (doc: any) => void // For adding a new document after upload
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -40,6 +45,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lastEmployeeResults, setLastEmployeeResults] = useState<EmployeeResult[]>([])
   const [lastDeepAnalysis, setLastDeepAnalysis] = useState<string | null>(null)
 
+  const [documents, setDocuments] = useState<any[]>([]) // State for documents
+
   const router = useRouter()
 
   const fetchProfileAndProjects = useCallback(async () => {
@@ -53,11 +60,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const profileData = await api.getProfile()
-      // Ensure profileData.user and profileData.user.credits are handled safely
       setProfile(profileData.user || null)
-      setCredits(profileData.user?.credits ?? null) // Use nullish coalescing for credits
+      setCredits(profileData.user?.credits ?? null)
 
-      setProjects(profileData.projects || []) // Ensure projects is an array
+      setProjects(profileData.projects || [])
 
       if (profileData.projects && profileData.projects.length > 0) {
         const lastProjectId = localStorage.getItem("lastProjectId")
@@ -68,7 +74,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Failed to fetch profile and projects:", error)
-      // Token might be invalid, log out
       localStorage.removeItem("authToken")
       setProfile(null)
       setProjects([])
@@ -79,9 +84,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [router])
 
+  /**
+   * Descarga la lista de documentos del usuario solo cuando hay sesión iniciada.
+   * De lo contrario salimos silenciosamente para evitar el error “Failed to fetch”.
+   */
+  const fetchDocuments = useCallback(async () => {
+    // Si no hay token no intentamos llamar al backend
+    if (typeof window !== "undefined" && !localStorage.getItem("authToken")) {
+      setDocuments([]) // Reseteamos a lista vacía
+      return
+    }
+
+    try {
+      const fetchedDocuments = await api.getDocuments()
+      setDocuments(fetchedDocuments || [])
+    } catch (error) {
+      // Mostramos el warning una sola vez
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Failed to fetch documents, using empty list.", error)
+      }
+      setDocuments([])
+    }
+  }, [])
+
+  const addDocument = useCallback((newDoc: any) => {
+    setDocuments((prev) => [...prev, newDoc])
+  }, [])
+
   useEffect(() => {
     fetchProfileAndProjects()
-  }, [fetchProfileAndProjects])
+    fetchDocuments() // Fetch documents on app load
+  }, [fetchProfileAndProjects, fetchDocuments])
 
   const handleSetCurrentProject = (project: Project | null) => {
     setCurrentProject(project)
@@ -106,6 +139,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLastInvestorResults,
     setLastEmployeeResults,
     setLastDeepAnalysis,
+    documents,
+    fetchDocuments,
+    addDocument,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
