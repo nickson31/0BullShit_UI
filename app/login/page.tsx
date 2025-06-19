@@ -53,6 +53,7 @@ export default function LoginPage() {
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      console.log("Google Access Token received:", tokenResponse.access_token)
       setIsLoadingGoogle(true)
       try {
         // Send the access token to your backend

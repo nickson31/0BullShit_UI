@@ -53,8 +53,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const profileData = await api.getProfile()
-      setProfile(profileData.user)
-      setCredits(profileData.user.credits)
+      setProfile(profileData.user || null)
+      setCredits(profileData.user?.credits || null)
       setProjects(profileData.projects)
 
       if (profileData.projects.length > 0) {
