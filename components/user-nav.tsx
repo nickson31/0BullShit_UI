@@ -12,19 +12,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Coins, LogOut } from "lucide-react"
+import { Coins, LogOut, UserCircle, Settings, CreditCard } from "lucide-react" // Added icons
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
-import Link from "next/link" // Import Link
+import Link from "next/link"
 
 export default function UserNav() {
-  const { profile, credits, isLoadingProfile } = useApp()
+  const { profile, credits, isLoadingProfile, fetchProfileAndProjects } = useApp() // Ensure credits is a number
   const router = useRouter()
 
   const handleLogout = () => {
     localStorage.removeItem("authToken")
+    // Reset app state by redirecting and letting AuthProvider handle it,
+    // or by calling a reset function in AppContext if available.
+    // For now, just clear token and push to login.
+    // AppProvider's useEffect will clear profile/projects.
     router.push("/login")
-    router.refresh()
+    // Optionally, to be very explicit:
+    // fetchProfileAndProjects(); // This will clear context if token is gone
   }
 
   return (
@@ -32,22 +37,25 @@ export default function UserNav() {
       {isLoadingProfile ? (
         <Skeleton className="h-8 w-24 rounded-md" />
       ) : (
-        <div className="flex items-center gap-2 rounded-full border bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-sm font-medium">
+        <Link
+          href="/credits"
+          className="flex items-center gap-2 rounded-full border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+        >
           <Coins className="h-4 w-4 text-yellow-500" />
-          <span>{credits?.toLocaleString() ?? 0}</span> {/* Mostrar créditos reales */}
-        </div>
+          <span>{credits.toLocaleString()}</span>
+        </Link>
       )}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-            <Avatar className="h-8 w-8">
+          <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+            <Avatar className="h-9 w-9">
               {isLoadingProfile ? (
-                <Skeleton className="h-8 w-8 rounded-full" />
+                <Skeleton className="h-9 w-9 rounded-full" />
               ) : (
                 <>
-                  <AvatarImage src="/placeholder.svg?width=32&height=32" alt={profile?.email} />
-                  <AvatarFallback>{profile?.first_name?.[0]?.toUpperCase()}</AvatarFallback>
+                  <AvatarImage src={profile?.profile_picture_url || "/placeholder-user.jpg"} alt={profile?.email} />
+                  <AvatarFallback>{profile?.first_name?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                 </>
               )}
             </Avatar>
@@ -56,28 +64,49 @@ export default function UserNav() {
         <DropdownMenuContent className="w-56" align="end" forceMount>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">
-                {profile ? `${profile.first_name} ${profile.last_name}` : <Skeleton className="h-4 w-24" />}
-              </p>
-              <p className="text-xs leading-none text-muted-foreground">
-                {profile ? profile.email : <Skeleton className="h-3 w-32 mt-1" />}
-              </p>
+              {isLoadingProfile ? (
+                <>
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-full mt-1" />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium leading-none truncate">
+                    {profile ? `${profile.first_name} ${profile.last_name}` : "User"}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground truncate">
+                    {profile ? profile.email : "Loading..."}
+                  </p>
+                </>
+              )}
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-              <Link href="/profile">Profile</Link> {/* Link a la nueva página de perfil */}
+              <Link href="/profile" className="flex items-center w-full">
+                <UserCircle className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/settings">Settings</Link>
+              <Link href="/credits" className="flex items-center w-full">
+                <CreditCard className="mr-2 h-4 w-4" />
+                <span>Billing & Credits</span>
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/credits">Billing</Link> {/* Billing es la página de créditos */}
+              <Link href="/settings" className="flex items-center w-full">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </Link>
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout}>
+          <DropdownMenuItem
+            onClick={handleLogout}
+            className="text-red-600 dark:text-red-400 focus:bg-red-100 dark:focus:bg-red-700/50 focus:text-red-700 dark:focus:text-red-300"
+          >
             <LogOut className="mr-2 h-4 w-4" />
             <span>Log out</span>
           </DropdownMenuItem>

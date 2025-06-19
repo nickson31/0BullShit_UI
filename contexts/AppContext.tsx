@@ -1,21 +1,22 @@
 "use client"
-
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from "react"
-import type { InvestorResult, EmployeeResult, Project, UserProfile } from "@/services/api"
+import type { UserProfile, Project, InvestorResult, EmployeeResult, Document as ApiDocument } from "@/services/api" // Renamed Document to ApiDocument
 import { api } from "@/services/api"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation" // Added usePathname
 
 interface AppContextType {
   // User & Auth
   profile: UserProfile | null
-  credits: number | null
+  credits: number // Ensure credits is always a number
   isLoadingProfile: boolean
+  fetchProfileAndProjects: () => Promise<void> // Expose to allow manual refresh
 
   // Projects
   projects: Project[]
   currentProject: Project | null
   setCurrentProject: (project: Project | null) => void
-  fetchProfileAndProjects: () => Promise<void>
+  createProject: (name: string, description?: string) => Promise<Project | null>
+  isLoadingProjects: boolean
 
   // Chat search results
   lastInvestorResults: InvestorResult[]
@@ -25,96 +26,161 @@ interface AppContextType {
   setLastEmployeeResults: (results: EmployeeResult[]) => void
   setLastDeepAnalysis: (analysis: string | null) => void
 
-  // Documents (added for documents page)
-  documents: any[] // TODO: Define a proper Document type
-  fetchDocuments: () => Promise<void>
-  addDocument: (doc: any) => void // For adding a new document after upload
+  // Documents
+  documents: ApiDocument[]
+  fetchDocuments: (projectId?: string) => Promise<void>
+  uploadAndAddDocument: (file: File, projectId: string, documentType: string) => Promise<void>
+  deleteDocumentState: (documentId: string) => void
+  isLoadingDocuments: boolean
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [credits, setCredits] = useState<number | null>(null)
+  const [credits, setCredits] = useState<number>(0) // Default to 0
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
 
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true)
 
   const [lastInvestorResults, setLastInvestorResults] = useState<InvestorResult[]>([])
   const [lastEmployeeResults, setLastEmployeeResults] = useState<EmployeeResult[]>([])
   const [lastDeepAnalysis, setLastDeepAnalysis] = useState<string | null>(null)
 
-  const [documents, setDocuments] = useState<any[]>([]) // State for documents
+  const [documents, setDocuments] = useState<ApiDocument[]>([])
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
 
   const router = useRouter()
+  const pathname = usePathname()
 
   const fetchProfileAndProjects = useCallback(async () => {
     setIsLoadingProfile(true)
+    setIsLoadingProjects(true)
     const token = localStorage.getItem("authToken")
+
     if (!token) {
+      setProfile(null)
+      setCredits(0)
+      setProjects([])
+      setCurrentProject(null)
       setIsLoadingProfile(false)
-      // No need to redirect here, AuthProvider handles it
+      setIsLoadingProjects(false)
+      if (!pathname.startsWith("/login") && !pathname.startsWith("/register")) {
+        router.push("/login")
+      }
       return
     }
 
     try {
-      const profileData = await api.getProfile()
-      setProfile(profileData.user || null)
-      setCredits(profileData.user?.credits ?? null)
+      const [profileData, projectsData] = await Promise.all([api.getProfile(), api.getProjects()])
 
-      setProjects(profileData.projects || [])
+      setProfile(profileData || null)
+      setCredits(profileData?.credits ?? 0) // Use profileData.credits
 
-      if (profileData.projects && profileData.projects.length > 0) {
+      setProjects(projectsData.projects || [])
+
+      if (projectsData.projects && projectsData.projects.length > 0) {
         const lastProjectId = localStorage.getItem("lastProjectId")
-        const projectToSet = profileData.projects.find((p) => p.id === lastProjectId) || profileData.projects[0]
+        const projectToSet = projectsData.projects.find((p) => p.id === lastProjectId) || projectsData.projects[0]
         setCurrentProject(projectToSet)
+        if (projectToSet) {
+          await fetchDocuments(projectToSet.id) // Fetch documents for current project
+        }
       } else {
         setCurrentProject(null)
+        setDocuments([]) // No project, no documents
       }
     } catch (error) {
       console.error("Failed to fetch profile and projects:", error)
       localStorage.removeItem("authToken")
       setProfile(null)
+      setCredits(0)
       setProjects([])
       setCurrentProject(null)
-      router.push("/login")
+      setDocuments([])
+      if (!pathname.startsWith("/login") && !pathname.startsWith("/register")) {
+        router.push("/login")
+      }
     } finally {
       setIsLoadingProfile(false)
+      setIsLoadingProjects(false)
     }
-  }, [router])
+  }, [router, pathname]) // Added pathname
 
-  /**
-   * Descarga la lista de documentos del usuario solo cuando hay sesión iniciada.
-   * De lo contrario salimos silenciosamente para evitar el error “Failed to fetch”.
-   */
-  const fetchDocuments = useCallback(async () => {
-    // Si no hay token no intentamos llamar al backend
-    if (typeof window !== "undefined" && !localStorage.getItem("authToken")) {
-      setDocuments([]) // Reseteamos a lista vacía
-      return
-    }
-
+  const createProject = async (name: string, description?: string): Promise<Project | null> => {
     try {
-      const fetchedDocuments = await api.getDocuments()
-      setDocuments(fetchedDocuments || [])
-    } catch (error) {
-      // Mostramos el warning una sola vez
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Failed to fetch documents, using empty list.", error)
+      const newProjectResponse = await api.createProject({ name, description })
+      if (newProjectResponse.success && newProjectResponse.project_id) {
+        // Refetch all projects to get the full new project object
+        await fetchProfileAndProjects()
+        // Find and set the newly created project as current
+        // This relies on fetchProfileAndProjects updating the projects list
+        // and then finding it. A bit indirect.
+        // A more direct way would be if createProject returned the full project object.
+        // For now, let's assume fetchProfileAndProjects will make it available.
+        const newProject = projects.find((p) => p.id === newProjectResponse.project_id) || null
+        if (newProject) setCurrentProject(newProject)
+        else await fetchProfileAndProjects() // try refetching if not found immediately
+        return newProject
       }
-      setDocuments([])
+      return null
+    } catch (error) {
+      console.error("Failed to create project in context:", error)
+      return null
     }
-  }, [])
+  }
 
-  const addDocument = useCallback((newDoc: any) => {
-    setDocuments((prev) => [...prev, newDoc])
-  }, [])
+  const fetchDocuments = useCallback(
+    async (projectId?: string) => {
+      const targetProjectId = projectId || currentProject?.id
+      if (!targetProjectId) {
+        setDocuments([])
+        return
+      }
+      setIsLoadingDocuments(true)
+      try {
+        const response = await api.getDocuments(targetProjectId)
+        setDocuments(response.documents || [])
+      } catch (error) {
+        console.error("Failed to fetch documents:", error)
+        setDocuments([])
+      } finally {
+        setIsLoadingDocuments(false)
+      }
+    },
+    [currentProject?.id],
+  )
+
+  const uploadAndAddDocument = async (file: File, projectId: string, documentType: string) => {
+    setIsLoadingDocuments(true)
+    try {
+      const newDoc = await api.uploadDocument(file, projectId, documentType)
+      setDocuments((prev) => [...prev, newDoc])
+    } catch (error) {
+      console.error("Failed to upload document:", error)
+      // Handle error (e.g., show toast)
+    } finally {
+      setIsLoadingDocuments(false)
+    }
+  }
+
+  const deleteDocumentState = (documentId: string) => {
+    setDocuments((prev) => prev.filter((doc) => doc.id !== documentId))
+  }
 
   useEffect(() => {
     fetchProfileAndProjects()
-    fetchDocuments() // Fetch documents on app load
-  }, [fetchProfileAndProjects, fetchDocuments])
+  }, [fetchProfileAndProjects]) // Initial fetch
+
+  useEffect(() => {
+    if (currentProject?.id) {
+      fetchDocuments(currentProject.id)
+    } else {
+      setDocuments([]) // Clear documents if no project selected
+    }
+  }, [currentProject?.id, fetchDocuments])
 
   const handleSetCurrentProject = (project: Project | null) => {
     setCurrentProject(project)
@@ -129,10 +195,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     profile,
     credits,
     isLoadingProfile,
+    fetchProfileAndProjects,
     projects,
     currentProject,
     setCurrentProject: handleSetCurrentProject,
-    fetchProfileAndProjects,
+    createProject,
+    isLoadingProjects,
     lastInvestorResults,
     lastEmployeeResults,
     lastDeepAnalysis,
@@ -141,7 +209,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLastDeepAnalysis,
     documents,
     fetchDocuments,
-    addDocument,
+    uploadAndAddDocument,
+    deleteDocumentState,
+    isLoadingDocuments,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
